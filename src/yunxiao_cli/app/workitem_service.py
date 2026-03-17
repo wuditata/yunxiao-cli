@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
@@ -162,8 +163,16 @@ class WorkitemService:
         profile_name: str | None,
         workitem_id: str,
         target_status: str,
+        field_pairs: list[str] | None = None,
+        field_json_pairs: list[str] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        return self.update(profile_name=profile_name, workitem_id=workitem_id, status=target_status)
+        return self.update(
+            profile_name=profile_name,
+            workitem_id=workitem_id,
+            status=target_status,
+            field_pairs=field_pairs,
+            field_json_pairs=field_json_pairs,
+        )
 
     def _projex_api(self, profile) -> ProjexAPI:
         account = self.store.get_account(profile.account)
@@ -198,10 +207,31 @@ class WorkitemService:
             for key, value in parsed:
                 items[field_ids[key]] = value
         if field_json_pairs:
-            parsed = [self._split_pair(item) for item in field_json_pairs]
-            field_ids = self.meta_service.resolve_field_ids(profile, workitem_type_id, [key for key, _ in parsed])
-            for key, value in parsed:
-                items[field_ids[key]] = json.loads(value)
+            parsed = self._parse_field_json_pairs(field_json_pairs)
+            field_ids = self.meta_service.resolve_field_ids(profile, workitem_type_id, list(parsed.keys()))
+            for key, value in parsed.items():
+                items[field_ids[key]] = value
+        return items
+
+    def _parse_field_json_pairs(self, values: list[str]) -> dict[str, Any]:
+        items: dict[str, Any] = {}
+        for raw in values:
+            if "=" in raw:
+                key, value = self._split_pair(raw)
+                try:
+                    items[key] = json.loads(value)
+                except JSONDecodeError as error:
+                    raise CliError(f"invalid field json value: {value}") from error
+                continue
+
+            try:
+                data = json.loads(raw)
+            except JSONDecodeError as error:
+                raise CliError(f"invalid field json object: {raw}") from error
+            if not isinstance(data, dict):
+                raise CliError(f"invalid field json object: {raw}")
+            for key, value in data.items():
+                items[str(key)] = value
         return items
 
     @staticmethod

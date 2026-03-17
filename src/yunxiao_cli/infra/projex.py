@@ -88,7 +88,11 @@ class ProjexAPI(BaseAPI):
         return self.post(f"/oapi/v1/projex/organizations/{org_id}/workitems", data=payload)
 
     def update_work_item(self, org_id: str, workitem_id: str, update_fields: dict[str, Any]) -> dict:
-        return self.put(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}", data=update_fields)
+        payload = dict(update_fields)
+        custom_fields = payload.pop("customFieldValues", None)
+        if isinstance(custom_fields, dict):
+            payload.update(custom_fields)
+        return self.put(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}", data=payload)
 
     def search_workitems(
         self,

@@ -190,6 +190,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_name=args.profile,
                 workitem_id=args.workitem_id,
                 target_status=args.to,
+                field_pairs=args.field,
+                field_json_pairs=args.field_json,
             )
             _print_success(data=data, profile=profile)
             return 0

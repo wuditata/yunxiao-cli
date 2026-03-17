@@ -80,6 +80,24 @@ yunxiao_cli workitem mine --profile pm-dev --category all
 yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中"
 yunxiao_cli workitem update 1001 --profile pm-dev --assigned-to "张三"
 yunxiao_cli workitem transition 1001 --profile pm-dev --to "已完成"
+# 状态流转有必填字段时，可在 transition 一次传入
+yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
+```
+
+已执行 `yunxiao_cli profile use <name>` 后，命令可省略 `--profile`。
+
+## 状态流转必填字段
+
+当目标状态配置了必填字段（如：计划开始时间、计划完成时间、预计工时），请在 `update/transition` 同时提交字段值。
+
+```bash
+# 用字段 ID（推荐）
+yunxiao_cli workitem transition 1001 --to "处理中" \
+  --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
+
+# 或用字段名（会自动映射到字段 ID）
+yunxiao_cli workitem transition 1001 --to "处理中" \
+  --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
 ```
 
 评论与父子关系：

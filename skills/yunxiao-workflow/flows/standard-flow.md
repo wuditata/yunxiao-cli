@@ -9,6 +9,15 @@
                                                                     ↘ 已取消（异常终止）
 ```
 
+## 流转必填字段说明
+
+若目标状态配置了必填字段（例如：计划开始时间、计划完成时间、预计工时），执行 `workitem transition` 时需同时传字段值：
+
+```bash
+yunxiao_cli workitem transition <id> --profile <profile> --to "处理中" \
+  --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
+```
+
 ## 各阶段职责
 
 ### 阶段 1：PM Agent — 需求创建（待处理）

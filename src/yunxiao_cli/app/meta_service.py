@@ -158,7 +158,17 @@ class MetaService:
         field_names: list[str],
     ) -> dict[str, str]:
         fields = self.list_fields(profile, workitem_type_id=workitem_type_id)
-        index = {field.get("name"): field.get("id") for field in fields if field.get("name") and field.get("id")}
+        index: dict[str, str] = {}
+        for field in fields:
+            field_id = field.get("id")
+            if not field_id:
+                continue
+            field_id_text = str(field_id)
+            index[field_id_text] = field_id_text
+            for key in ("name", "displayName", "fieldName", "identifier", "fieldIdentifier"):
+                value = field.get(key)
+                if value:
+                    index[str(value)] = field_id_text
         resolved = {name: index[name] for name in field_names if name in index}
         missing = [name for name in field_names if name not in resolved]
         if missing:

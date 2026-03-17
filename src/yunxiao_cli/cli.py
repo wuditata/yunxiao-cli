@@ -90,6 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
     workitem_transition_parser.add_argument("workitem_id")
     workitem_transition_parser.add_argument("--profile")
     workitem_transition_parser.add_argument("--to", required=True)
+    workitem_transition_parser.add_argument("--field", action="append")
+    workitem_transition_parser.add_argument("--field-json", action="append")
 
     comment_parser = subparsers.add_parser("comment")
     comment_subparsers = comment_parser.add_subparsers(dest="comment_command")
