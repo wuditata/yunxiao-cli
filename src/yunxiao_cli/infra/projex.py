@@ -72,6 +72,7 @@ class ProjexAPI(BaseAPI):
         description: str | None = None,
         parent_id: str | None = None,
         assigned_to: str | None = None,
+        custom_field_values: dict[str, Any] | None = None,
     ) -> dict:
         payload: dict[str, Any] = {
             "spaceId": project_id,
@@ -85,6 +86,8 @@ class ProjexAPI(BaseAPI):
             payload["parentIdentifier"] = parent_id
         if assigned_to is not None:
             payload["assignedTo"] = assigned_to
+        if isinstance(custom_field_values, dict) and custom_field_values:
+            payload["customFieldValues"] = custom_field_values
         return self.post(f"/oapi/v1/projex/organizations/{org_id}/workitems", data=payload)
 
     def update_work_item(self, org_id: str, workitem_id: str, update_fields: dict[str, Any]) -> dict:
@@ -93,6 +96,65 @@ class ProjexAPI(BaseAPI):
         if isinstance(custom_fields, dict):
             payload.update(custom_fields)
         return self.put(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}", data=payload)
+
+    def list_estimated_efforts(self, org_id: str, workitem_id: str) -> list[dict]:
+        items = self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/estimatedEfforts")
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
+
+    def create_estimated_effort(
+        self,
+        org_id: str,
+        workitem_id: str,
+        *,
+        owner: str,
+        spent_time: float,
+        description: str | None = None,
+        operator_id: str | None = None,
+        work_type: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "owner": owner,
+            "spentTime": spent_time,
+        }
+        if description is not None:
+            payload["description"] = description
+        if operator_id is not None:
+            payload["operatorId"] = operator_id
+        if work_type is not None:
+            payload["workType"] = work_type
+        return self.post(
+            f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/estimatedEfforts",
+            data=payload,
+        )
+
+    def update_estimated_effort(
+        self,
+        org_id: str,
+        workitem_id: str,
+        effort_id: str,
+        *,
+        owner: str,
+        spent_time: float,
+        description: str | None = None,
+        operator_id: str | None = None,
+        work_type: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "owner": owner,
+            "spentTime": spent_time,
+        }
+        if description is not None:
+            payload["description"] = description
+        if operator_id is not None:
+            payload["operatorId"] = operator_id
+        if work_type is not None:
+            payload["workType"] = work_type
+        return self.put(
+            f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/estimatedEfforts/{effort_id}",
+            data=payload,
+        )
 
     def search_workitems(
         self,

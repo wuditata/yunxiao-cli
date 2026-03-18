@@ -9,14 +9,23 @@
                                                                     ↘ 已取消（异常终止）
 ```
 
-## 流转必填字段说明
+## 创建/流转必填字段说明
 
-若目标状态配置了必填字段（例如：计划开始时间、计划完成时间、预计工时），执行 `workitem transition` 时需同时传字段值：
+若创建或目标状态配置了必填字段（例如：严重程度、计划开始时间、计划完成时间、预计工时），需在命令中同时传字段值：
 
 ```bash
+# 创建 Bug 时传严重程度
+yunxiao_cli workitem create --profile <profile> \
+  --category Bug \
+  --subject "登录失败" \
+  --field-json '{"严重程度":"3-一般"}'
+
+# 流转状态时传字段
 yunxiao_cli workitem transition <id> --profile <profile> --to "处理中" \
   --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
 ```
+
+多行 Markdown 描述统一使用 `--desc-file`，避免 shell 展开影响正文内容。
 
 ## 各阶段职责
 

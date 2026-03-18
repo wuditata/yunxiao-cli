@@ -42,12 +42,17 @@ def seed_store(root: Path) -> Store:
             workitem_types=[
                 {"id": "req-type", "categoryId": "Req", "defaultType": True, "name": "产品需求"},
                 {"id": "task-type", "categoryId": "Task", "defaultType": True, "name": "任务"},
+                {"id": "bug-type", "categoryId": "Bug", "defaultType": True, "name": "缺陷"},
             ],
             statuses={
                 "req-type": [{"id": "req-new", "name": "需求创建", "displayName": "需求创建"}],
                 "task-type": [{"id": "task-dev", "name": "功能开发", "displayName": "功能开发"}],
             },
-            fields={"req-type": [{"id": "field-subject", "name": "标题"}], "task-type": []},
+            fields={
+                "req-type": [{"id": "field-subject", "name": "标题"}],
+                "task-type": [],
+                "bug-type": [{"id": "field-severity", "name": "严重程度"}],
+            },
             members=[{"id": "member-1", "userId": "user-1", "name": "Alice"}],
             updated_at="2099-01-01T00:00:00+00:00",
             ttl_seconds=3600,
@@ -79,6 +84,73 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual("req-type", captured["payload"]["workitemTypeId"])
+
+    @patch("requests.request")
+    def test_workitem_create_accepts_field_name(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "create",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Bug",
+                        "--subject",
+                        "严重程度必填",
+                        "--field",
+                        "严重程度=3-一般",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("bug-type", captured["payload"]["workitemTypeId"])
+        self.assertEqual("3-一般", captured["payload"]["customFieldValues"]["field-severity"])
+
+    @patch("requests.request")
+    def test_workitem_create_accepts_field_json_object(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "create",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Bug",
+                        "--subject",
+                        "严重程度必填",
+                        "--field-json",
+                        '{"严重程度":"3-一般"}',
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("3-一般", captured["payload"]["customFieldValues"]["field-severity"])
 
     @patch("requests.request")
     def test_workitem_get_and_search_use_profile_cache(self, request_mock):

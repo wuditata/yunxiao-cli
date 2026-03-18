@@ -143,6 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 desc_file=args.desc_file,
                 parent=args.parent,
                 assigned_to=args.assigned_to,
+                field_pairs=args.field,
+                field_json_pairs=args.field_json,
             )
             _print_success(data=data, profile=profile)
             return 0

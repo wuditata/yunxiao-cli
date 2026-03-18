@@ -58,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     workitem_create_parser.add_argument("--desc-file")
     workitem_create_parser.add_argument("--parent")
     workitem_create_parser.add_argument("--assigned-to")
+    workitem_create_parser.add_argument("--field", action="append")
+    workitem_create_parser.add_argument("--field-json", action="append")
 
     workitem_get_parser = workitem_subparsers.add_parser("get")
     workitem_get_parser.add_argument("workitem_id")

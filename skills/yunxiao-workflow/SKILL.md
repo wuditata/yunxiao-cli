@@ -72,6 +72,8 @@ yunxiao_cli project list --profile <profile>
 
 ```bash
 yunxiao_cli workitem create --category Req --subject "新需求" --profile <profile>
+yunxiao_cli workitem create --category Bug --subject "登录失败" --profile <profile> \
+  --field "严重程度=3-一般"
 yunxiao_cli workitem get 1001 --profile <profile>
 yunxiao_cli workitem mine --category all --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
@@ -82,9 +84,9 @@ yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
   --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}' 
 ```
 
-## 状态流转必填字段
+## 创建/更新/状态流转必填字段
 
-当状态流转校验必填字段时，`workitem update` 与 `workitem transition` 都支持：
+当创建、更新或状态流转校验必填字段时，`workitem create`、`workitem update`、`workitem transition` 都支持：
 
 - `--field "字段名或字段ID=值"`（可重复）
 - `--field-json '{"字段名或字段ID": 值}'`（推荐，一次传完整字段集）
@@ -92,9 +94,14 @@ yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
 示例：
 
 ```bash
+yunxiao_cli workitem create --category Bug --subject "登录失败" --profile <profile> \
+  --field-json '{"严重程度":"3-一般"}'
+
 yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
   --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
 ```
+
+多行 Markdown 描述（尤其包含代码块）统一使用 `--desc-file`，避免 shell 解析破坏正文内容。
 
 评论与关联：
 

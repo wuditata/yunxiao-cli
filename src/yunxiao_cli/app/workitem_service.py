@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.store import Store
+from ..infra.base import YunxiaoAPIError
 from ..infra.projex import ProjexAPI
 from .errors import CliError
 from .meta_service import MetaService
@@ -30,11 +31,19 @@ class WorkitemService:
         desc_file: str | None = None,
         parent: str | None = None,
         assigned_to: str | None = None,
+        field_pairs: list[str] | None = None,
+        field_json_pairs: list[str] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         workitem_type = self.meta_service.resolve_workitem_type(profile, category=category, type_value=type_value)
         description = self._read_description(desc, desc_file)
         assignee = self.meta_service.resolve_member(profile, assigned_to) if assigned_to else None
+        custom_fields = self._parse_custom_fields(
+            profile,
+            workitem_type["id"],
+            field_pairs or [],
+            field_json_pairs or [],
+        )
         api = self._projex_api(profile)
         created = api.create_work_item(
             org_id=profile.org,
@@ -44,6 +53,7 @@ class WorkitemService:
             description=description,
             parent_id=parent,
             assigned_to=assignee,
+            custom_field_values=custom_fields,
         )
         return created, self._profile_dict(profile)
 
@@ -154,7 +164,21 @@ class WorkitemService:
         custom_fields = self._parse_custom_fields(profile, workitem_type_id, field_pairs or [], field_json_pairs or [])
         if custom_fields:
             update_data["customFieldValues"] = custom_fields
-        result = api.update_work_item(profile.org, workitem_id, update_data)
+        try:
+            result = api.update_work_item(profile.org, workitem_id, update_data)
+        except YunxiaoAPIError as error:
+            recovered = self._recover_readonly_estimated_effort(
+                api=api,
+                profile=profile,
+                workitem_id=workitem_id,
+                workitem_type_id=workitem_type_id,
+                current=current,
+                update_data=update_data,
+                error=error,
+            )
+            if recovered is None:
+                raise
+            result, update_data = recovered
         return {"workitem": result, "changes": update_data}, self._profile_dict(profile)
 
     def transition(
@@ -240,6 +264,167 @@ class WorkitemService:
             raise CliError(f"invalid field pair: {value}")
         key, raw = value.split("=", 1)
         return key, raw
+
+    def _recover_readonly_estimated_effort(
+        self,
+        *,
+        api: ProjexAPI,
+        profile,
+        workitem_id: str,
+        workitem_type_id: str,
+        current: dict[str, Any],
+        update_data: dict[str, Any],
+        error: YunxiaoAPIError,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        custom_fields = update_data.get("customFieldValues")
+        if not isinstance(custom_fields, dict) or not custom_fields:
+            return None
+
+        blocked_ids = self._extract_readonly_field_ids(str(error))
+        if not blocked_ids:
+            return None
+
+        effort_field_ids = self._resolve_estimated_effort_field_ids(profile, workitem_type_id)
+        target_ids = [field_id for field_id in blocked_ids if field_id in effort_field_ids and field_id in custom_fields]
+        if not target_ids:
+            return None
+
+        retry_custom_fields = dict(custom_fields)
+        for field_id in target_ids:
+            self._upsert_estimated_effort(
+                api=api,
+                profile=profile,
+                workitem_id=workitem_id,
+                current=current,
+                assigned_to=update_data.get("assignedTo"),
+                raw_spent_time=retry_custom_fields[field_id],
+            )
+            retry_custom_fields.pop(field_id, None)
+
+        retry_update_data = dict(update_data)
+        if retry_custom_fields:
+            retry_update_data["customFieldValues"] = retry_custom_fields
+        else:
+            retry_update_data.pop("customFieldValues", None)
+
+        if not retry_update_data:
+            return api.get_work_item(profile.org, workitem_id), retry_update_data
+        return api.update_work_item(profile.org, workitem_id, retry_update_data), retry_update_data
+
+    def _resolve_estimated_effort_field_ids(self, profile, workitem_type_id: str) -> set[str]:
+        fields = self.meta_service.list_fields(profile, workitem_type_id=workitem_type_id)
+        result: set[str] = set()
+        for field in fields:
+            field_id = field.get("id")
+            if not field_id:
+                continue
+            texts = [
+                field.get("name"),
+                field.get("displayName"),
+                field.get("fieldName"),
+                field.get("nameEn"),
+                field.get("identifier"),
+                field.get("fieldIdentifier"),
+            ]
+            if any(self._is_estimated_effort_field_name(text) for text in texts if text):
+                result.add(str(field_id))
+        return result
+
+    def _upsert_estimated_effort(
+        self,
+        *,
+        api: ProjexAPI,
+        profile,
+        workitem_id: str,
+        current: dict[str, Any],
+        assigned_to: Any,
+        raw_spent_time: Any,
+    ) -> None:
+        spent_time = self._parse_spent_time(raw_spent_time)
+        owner = self._resolve_estimated_effort_owner(profile, current=current, assigned_to=assigned_to)
+        estimated_efforts = api.list_estimated_efforts(profile.org, workitem_id)
+        existing_id = self._find_estimated_effort_id_by_owner(estimated_efforts, owner)
+
+        if existing_id:
+            api.update_estimated_effort(
+                profile.org,
+                workitem_id,
+                existing_id,
+                owner=owner,
+                spent_time=spent_time,
+            )
+            return
+
+        api.create_estimated_effort(
+            profile.org,
+            workitem_id,
+            owner=owner,
+            spent_time=spent_time,
+        )
+
+    def _resolve_estimated_effort_owner(self, profile, *, current: dict[str, Any], assigned_to: Any) -> str:
+        owner = self._extract_user_id(assigned_to)
+        if not owner:
+            owner = self._extract_user_id(current.get("assignedTo"))
+        if owner:
+            return owner
+
+        account = self.store.get_account(profile.account)
+        fallback = account.user.get("userId") or account.user.get("id")
+        if fallback:
+            return str(fallback)
+        raise CliError("estimated effort owner is missing")
+
+    @staticmethod
+    def _extract_user_id(value: Any) -> str | None:
+        if not value:
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            user_id = value.get("userId") or value.get("id")
+            if user_id:
+                return str(user_id)
+        return None
+
+    @staticmethod
+    def _find_estimated_effort_id_by_owner(items: list[dict[str, Any]], owner: str) -> str | None:
+        for item in items:
+            item_owner = WorkitemService._extract_user_id(item.get("owner"))
+            if item_owner and item_owner == owner:
+                effort_id = item.get("id")
+                if effort_id:
+                    return str(effort_id)
+        if not items:
+            return None
+        effort_id = items[0].get("id")
+        if effort_id:
+            return str(effort_id)
+        return None
+
+    @staticmethod
+    def _extract_readonly_field_ids(message: str) -> set[str]:
+        return set(re.findall(r"fieldId\s*[:：]\s*([A-Za-z0-9_-]+)", message))
+
+    @staticmethod
+    def _is_estimated_effort_field_name(value: Any) -> bool:
+        text = str(value).strip().lower().replace(" ", "")
+        return (
+            "预计工时" in text
+            or "估算工时" in text
+            or "spenttime" in text
+            or "estimatedeffort" in text
+        )
+
+    @staticmethod
+    def _parse_spent_time(value: Any) -> float:
+        try:
+            spent_time = float(value)
+        except (TypeError, ValueError) as error:
+            raise CliError(f"invalid estimated effort value: {value}") from error
+        if spent_time <= 0:
+            raise CliError("estimated effort must be greater than 0")
+        return spent_time
 
     def _search_all_by_category(
         self,

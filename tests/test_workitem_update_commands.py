@@ -121,6 +121,61 @@ class WorkitemUpdateCommandsTest(unittest.TestCase):
         self.assertEqual("2026-04-01", captured["payload"]["field-plan"])
 
     @patch("requests.request")
+    def test_workitem_transition_fallbacks_to_estimated_effort_api_when_field_is_readonly(self, request_mock):
+        update_payloads: list[dict] = []
+        estimated_effort_create_payload: dict = {}
+        call_state = {"update_attempts": 0}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse(
+                    {"id": "1001", "workitemType": {"id": "task-type"}, "assignedTo": {"userId": "user-1"}}
+                )
+
+            if url.endswith("/workitems/1001") and method == "PUT":
+                payload = kwargs["json"]
+                update_payloads.append(payload)
+                call_state["update_attempts"] += 1
+                if call_state["update_attempts"] == 1:
+                    return FakeResponse({"message": "字段不可修改, fieldId: 101586"}, status_code=400)
+                return FakeResponse({"id": "1001"})
+
+            if url.endswith("/workitems/1001/estimatedEfforts") and method == "GET":
+                return FakeResponse([])
+            if url.endswith("/workitems/1001/estimatedEfforts") and method == "POST":
+                estimated_effort_create_payload.update(kwargs["json"])
+                return FakeResponse({"id": "eff-1"})
+
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "transition",
+                        "1001",
+                        "--profile",
+                        "pm-dev",
+                        "--to",
+                        "功能开发",
+                        "--field-json",
+                        '{"预计工时": 1.5}',
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(2, len(update_payloads))
+        self.assertEqual(1.5, update_payloads[0]["101586"])
+        self.assertNotIn("101586", update_payloads[1])
+        self.assertEqual("task-dev", update_payloads[1]["status"])
+        self.assertEqual("user-1", estimated_effort_create_payload["owner"])
+        self.assertEqual(1.5, estimated_effort_create_payload["spentTime"])
+
+    @patch("requests.request")
     def test_workitem_update_resolves_member_and_field_names(self, request_mock):
         captured = {}
 
