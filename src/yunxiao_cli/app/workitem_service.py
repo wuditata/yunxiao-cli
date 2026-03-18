@@ -38,20 +38,21 @@ class WorkitemService:
         workitem_type = self.meta_service.resolve_workitem_type(profile, category=category, type_value=type_value)
         description = self._read_description(desc, desc_file)
         assignee = self.meta_service.resolve_member(profile, assigned_to) if assigned_to else None
+        api = self._projex_api(profile)
+        parent_id = self._resolve_parent_id(api, profile, parent) if parent else None
         custom_fields = self._parse_custom_fields(
             profile,
             workitem_type["id"],
             field_pairs or [],
             field_json_pairs or [],
         )
-        api = self._projex_api(profile)
         created = api.create_work_item(
             org_id=profile.org,
             project_id=profile.project,
             subject=subject,
             workitem_type_id=workitem_type["id"],
             description=description,
-            parent_id=parent,
+            parent_id=parent_id,
             assigned_to=assignee,
             custom_field_values=custom_fields,
         )
@@ -215,7 +216,15 @@ class WorkitemService:
     def _read_description(desc: str | None, desc_file: str | None) -> str | None:
         if desc_file:
             return Path(desc_file).read_text(encoding="utf-8")
-        return desc
+        return WorkitemService._normalize_inline_description(desc)
+
+    @staticmethod
+    def _normalize_inline_description(desc: str | None) -> str | None:
+        if desc is None:
+            return None
+        if any(separator in desc for separator in ("\r\n", "\n", "\r")):
+            return desc
+        return desc.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\r")
 
     def _parse_custom_fields(
         self,
@@ -257,6 +266,31 @@ class WorkitemService:
             for key, value in data.items():
                 items[str(key)] = value
         return items
+
+    def _resolve_parent_id(self, api: ProjexAPI, profile, parent: str) -> str:
+        parent_ref = str(parent).strip()
+        if not parent_ref:
+            raise CliError("parent workitem is empty")
+
+        try:
+            item = api.get_work_item(profile.org, parent_ref)
+        except YunxiaoAPIError:
+            item = self._find_workitem_by_serial_number(api, profile, parent_ref)
+        if not item:
+            raise CliError(f"parent workitem not found: {parent_ref}")
+
+        workitem_id = item.get("id")
+        if not workitem_id:
+            raise CliError(f"parent workitem id missing: {parent_ref}")
+        return str(workitem_id)
+
+    def _find_workitem_by_serial_number(self, api: ProjexAPI, profile, serial_number: str) -> dict[str, Any] | None:
+        for category in self.meta_service.CATEGORY_CHOICES:
+            items = self._search_all_by_category(api, profile.org, profile.project, category)
+            for item in items:
+                if item.get("serialNumber") == serial_number:
+                    return item
+        return None
 
     @staticmethod
     def _split_pair(value: str) -> tuple[str, str]:

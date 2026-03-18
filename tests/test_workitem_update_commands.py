@@ -274,6 +274,39 @@ class WorkitemUpdateCommandsTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(1.5, captured["payload"]["101586"])
 
+    @patch("requests.request")
+    def test_workitem_update_normalizes_escaped_newlines_in_desc(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "workitemType": {"id": "task-type"}})
+            if url.endswith("/workitems/1001") and method == "PUT":
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001"})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "update",
+                        "1001",
+                        "--profile",
+                        "pm-dev",
+                        "--desc",
+                        "## title\\n- item1\\n- item2\\n\\nparagraph2",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("## title\n- item1\n- item2\n\nparagraph2", captured["payload"]["description"])
+        self.assertEqual("MARKDOWN", captured["payload"]["formatType"])
+
 
 if __name__ == "__main__":
     unittest.main()

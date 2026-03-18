@@ -83,7 +83,7 @@ class ProjexAPI(BaseAPI):
             payload["description"] = description
             payload["formatType"] = "MARKDOWN"
         if parent_id is not None:
-            payload["parentIdentifier"] = parent_id
+            payload["parentId"] = parent_id
         if assigned_to is not None:
             payload["assignedTo"] = assigned_to
         if isinstance(custom_field_values, dict) and custom_field_values:

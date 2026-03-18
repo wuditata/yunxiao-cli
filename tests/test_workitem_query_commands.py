@@ -224,6 +224,115 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertEqual(2, result["data"]["total"])
         self.assertEqual({"req-1", "bug-1"}, {item["id"] for item in result["data"]["items"]})
 
+    @patch("requests.request")
+    def test_workitem_create_normalizes_escaped_newlines_in_desc(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "create",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Task",
+                        "--subject",
+                        "desc newline",
+                        "--desc",
+                        "## title\\n- item1\\n- item2\\n\\nparagraph2",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("## title\n- item1\n- item2\n\nparagraph2", captured["payload"]["description"])
+        self.assertEqual("MARKDOWN", captured["payload"]["formatType"])
+
+    @patch("requests.request")
+    def test_workitem_create_uses_parent_id_field(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/parent-1"):
+                return FakeResponse({"id": "parent-1", "serialNumber": "MGKH-68"})
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "create",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Task",
+                        "--subject",
+                        "child task",
+                        "--parent",
+                        "parent-1",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("parent-1", captured["payload"]["parentId"])
+
+    @patch("requests.request")
+    def test_workitem_create_resolves_parent_serial_number(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/MGKH-68"):
+                return FakeResponse({"message": "Not Found"}, status_code=404)
+            if url.endswith("/workitems:search"):
+                category = kwargs["json"]["category"]
+                if category == "Req":
+                    return FakeResponse([{"id": "parent-1", "serialNumber": "MGKH-68"}])
+                return FakeResponse([])
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "create",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Task",
+                        "--subject",
+                        "child task",
+                        "--parent",
+                        "MGKH-68",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("parent-1", captured["payload"]["parentId"])
+
 
 if __name__ == "__main__":
     unittest.main()
