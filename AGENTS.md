@@ -2,4 +2,6 @@
 
 # 接口参考
 
-alibabacloud-devops-mcp-server
+阿里云云效MCP项目，如果有接口问题，查找这里面的实现方式
+
+..\alibabacloud-devops-mcp-server
