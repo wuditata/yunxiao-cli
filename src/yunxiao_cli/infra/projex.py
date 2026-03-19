@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from .base import BaseAPI
@@ -61,6 +62,40 @@ class ProjexAPI(BaseAPI):
 
     def get_work_item(self, org_id: str, workitem_id: str) -> dict:
         return self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}")
+
+    def list_workitem_attachments(self, org_id: str, workitem_id: str) -> list[dict]:
+        items = self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/attachments")
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
+
+    def get_workitem_file(self, org_id: str, workitem_id: str, file_id: str) -> dict:
+        item = self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/files/{file_id}")
+        if isinstance(item, dict):
+            return item.get("result") or item
+        return {}
+
+    def upload_workitem_attachment(
+        self,
+        org_id: str,
+        workitem_id: str,
+        *,
+        file_path: str,
+        operator_id: str | None = None,
+    ) -> dict:
+        path = Path(file_path)
+        form_data: dict[str, Any] = {}
+        if operator_id:
+            form_data["operatorId"] = operator_id
+        with path.open("rb") as handle:
+            response = self.post_multipart(
+                f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/attachments",
+                data=form_data or None,
+                files={"file": (path.name, handle)},
+            )
+        if isinstance(response, dict):
+            return response.get("result") or response
+        return {"result": response}
 
     def create_work_item(
         self,

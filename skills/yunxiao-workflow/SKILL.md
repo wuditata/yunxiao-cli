@@ -74,6 +74,8 @@ yunxiao_cli project list --profile <profile>
 yunxiao_cli workitem create --category Req --subject "新需求" --profile <profile>
 yunxiao_cli workitem create --category Bug --subject "登录失败" --profile <profile> \
   --field "严重程度=3-一般"
+yunxiao_cli workitem create --category Req --subject "附带材料" --profile <profile> \
+  --attachment ./spec.md --attachment ./demo.png
 yunxiao_cli workitem get 1001 --profile <profile>
 yunxiao_cli workitem mine --category all --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
@@ -103,6 +105,27 @@ yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
 
 多行 Markdown 描述（尤其包含代码块）统一使用 `--desc-file`，避免 shell 解析破坏正文内容。
 
+附件：
+
+```bash
+yunxiao_cli workitem attachment upload 1001 --profile <profile> --path ./spec.md
+yunxiao_cli workitem attachment list 1001 --profile <profile>
+yunxiao_cli workitem attachment get 1001 --profile <profile> --file file-1
+```
+
+附件相关参数说明：
+
+- `workitem create --attachment <file>`：可重复传入多个文件；工单创建成功后按顺序上传
+- `workitem attachment upload <id> --path <file>`：给已有工单补传单个附件
+- `workitem attachment get <id> --file <file_id>`：查看附件文件信息和下载地址
+
+失败语义：
+
+- `workitem create --attachment` 先创建工单，再逐个上传附件
+- 附件上传 `fail-fast`
+- 任一附件失败，命令直接返回失败
+- 错误返回里会带上 `workitem`、`uploaded_attachments`、`failed_attachment`
+
 评论与关联：
 
 ```bash
@@ -116,4 +139,15 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 
 - Agent 读取项目根目录 `.yunxiao.json` 获取 `profile`，显式传 `--profile`
 - 状态、类型、字段、成员解析统一走项目缓存
-- 不自动合并 MR
+
+## 工作项内容模板与规范
+
+在创建不同类型的工作项或发表评论交流时，为了保证信息的高效可读性，各 Agent 和协作者应参考以下规范使用对应的模板格式记录信息：
+
+| 模板类型 | 适用场景 | 模板文档 |
+|----------|----------|----------|
+| 需求规范 | 描述业务线新功能、期望与验收标准 | [requirement-template.md](./templates/requirement-template.md) |
+| 任务规范 | 拆解自需求的具体开发或实施步骤指引 | [task-template.md](./templates/task-template.md) |
+| Bug规范 | 记录系统异常、缺陷复现与排查建议 | [bug-template.md](./templates/bug-template.md) |
+| 回复规范 | 进度同步、代码提交、答疑确认或评审 | [reply-template.md](./templates/reply-template.md) |
+| Git规范 | 指导标准代码提交与自动关联工作项 | [git-commit-template.md](./templates/git-commit-template.md) |

@@ -40,6 +40,10 @@ class BaseAPI:
             },
             timeout=30,
         )
+        return self._parse_response(response)
+
+    @staticmethod
+    def _parse_response(response: requests.Response) -> Any:
         if response.status_code >= 400:
             payload = {}
             try:
@@ -55,6 +59,27 @@ class BaseAPI:
             return {}
         return response.json()
 
+    def _request_multipart(
+        self,
+        method: str,
+        path: str,
+        *,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+    ) -> Any:
+        response = requests.request(
+            method=method,
+            url=f"{self.BASE_URL}{path}",
+            data=data,
+            files=files,
+            headers={
+                "x-yunxiao-token": self.token,
+                "Accept": "application/json",
+            },
+            timeout=30,
+        )
+        return self._parse_response(response)
+
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", path, params=params)
 
@@ -69,3 +94,12 @@ class BaseAPI:
 
     def put(self, path: str, *, data: dict[str, Any] | None = None) -> Any:
         return self._request("PUT", path, data=data)
+
+    def post_multipart(
+        self,
+        path: str,
+        *,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+    ) -> Any:
+        return self._request_multipart("POST", path, data=data, files=files)

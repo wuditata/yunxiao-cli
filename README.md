@@ -1,6 +1,36 @@
 # Yunxiao CLI
 
-面向云效工作项协作的统一命令行。
+面向云效工作项协作的统一命令行，适合开发者、自动化脚本和 Agent Workflow。
+
+它解决的不是“能不能调接口”，而是“能不能稳定地在多项目、多账号、多命令场景下把工作项协作跑顺”。
+
+## 亮点
+
+- 支持多 profile：同一台机器可同时管理多个账号、组织、项目上下文
+- 覆盖工作项主流程：创建、查询、搜索、更新、状态流转、评论、父子关联
+- 支持附件处理：可先对已有工单上传附件，也可在 `create` 时一并处理
+- 字段输入友好：支持字段名或字段 ID，适合人手执行和自动化脚本
+- 输出统一为 JSON：天然适合 shell、CI、Agent、编辑器插件集成
+- 自带 Skill 集成：可和仓库内 `skills/yunxiao-workflow` 配套使用
+
+## 30 秒了解它能做什么
+
+```bash
+# 多 profile 切换
+yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id>
+yunxiao_cli profile use pm-dev
+
+# 创建工作项并附带多个附件
+yunxiao_cli workitem create --category Req --subject "支持 CLI" \
+  --attachment ./spec.md --attachment ./demo.png
+
+# 给已有工单补传附件
+yunxiao_cli workitem attachment upload 1001 --path ./hotfix.patch
+
+# 状态流转时一次补齐必填字段
+yunxiao_cli workitem transition 1001 --to "处理中" \
+  --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
+```
 
 ## 安装
 
@@ -35,6 +65,37 @@ pip install -e .
 yunxiao_cli --help
 ```
 
+## 首次使用
+
+项目根目录下的 `.yunxiao.json` 主要给 `skills/yunxiao-workflow` 读取项目默认配置。
+
+首次接入时，可直接基于模板创建：
+
+```bash
+cp .yunxiao.json.temple .yunxiao.json
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .yunxiao.json.temple .yunxiao.json
+```
+
+模板字段说明：
+
+- `token`：云效登录 token
+- `profile`：CLI profile 名称
+- `project`：当前仓库对应的云效项目 ID
+- `assignee`：当前用户在云效中的标识
+
+创建后按实际值替换占位符，再执行：
+
+```bash
+yunxiao_cli login token <token> --account <assignee>
+yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
+yunxiao_cli profile use <profile>
+```
+
 ## 项目结构
 
 ```text
@@ -46,6 +107,7 @@ yunxiao-cli/
 ├── tests/
 ├── install.sh
 ├── install.bat
+├── .yunxiao.json.temple
 └── pyproject.toml
 ```
 
@@ -85,6 +147,7 @@ yunxiao_cli project get --profile pm-dev
 ```bash
 yunxiao_cli workitem create --profile pm-dev --category Req --subject "支持 CLI"
 yunxiao_cli workitem create --profile pm-dev --category Bug --subject "登录失败" --field "严重程度=3-一般"
+yunxiao_cli workitem create --profile pm-dev --category Req --subject "附带材料" --attachment ./spec.md --attachment ./demo.png
 yunxiao_cli workitem get 1001 --profile pm-dev --with-parent
 yunxiao_cli workitem mine --profile pm-dev --category all
 yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中"
@@ -93,6 +156,19 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "已完成"
 # 状态流转有必填字段时，可在 transition 一次传入
 yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
 ```
+
+创建工作项常用参数：
+
+- `--category`：工作项分类，如 `Req`、`Task`、`Bug`
+- `--type`：工作项类型 ID 或名称；不传时按分类取默认类型
+- `--subject`：工作项标题
+- `--desc`：直接传入描述内容，适合短文本
+- `--desc-file`：从文件读取描述，推荐多行 Markdown 使用
+- `--parent`：父工作项 ID 或流水号
+- `--assigned-to`：负责人，可传 userId、成员名或昵称
+- `--attachment`：附件文件路径，可重复传多个；工单创建成功后按顺序上传，失败即停止
+- `--field`：字段赋值，可重复传，如 `--field "严重程度=3-一般"`
+- `--field-json`：一次传完整字段集，推荐，如 `--field-json '{"严重程度":"3-一般"}'`
 
 已执行 `yunxiao_cli profile use <name>` 后，命令可省略 `--profile`。
 
@@ -124,6 +200,32 @@ yunxiao_cli comment list --profile pm-dev --workitem 1001
 yunxiao_cli relation add --profile pm-dev --parent 1001 --child 2001
 yunxiao_cli relation children --profile pm-dev --parent 1001
 ```
+
+工作项附件：
+
+```bash
+yunxiao_cli workitem attachment upload 1001 --profile pm-dev --path ./spec.md
+yunxiao_cli workitem attachment list 1001 --profile pm-dev
+yunxiao_cli workitem attachment get 1001 --profile pm-dev --file file-1
+```
+
+附件命令参数：
+
+- `workitem attachment upload <workitem_id> --path <file>`：上传单个附件到指定工作项
+- `workitem attachment list <workitem_id>`：列出工作项附件
+- `workitem attachment get <workitem_id> --file <file_id>`：查看附件文件信息和下载地址
+
+`workitem create --attachment` 的执行顺序：
+
+1. 先创建工单
+2. 再按传入顺序逐个上传附件
+3. 任一附件上传失败，立即停止并返回失败
+
+失败时会在错误返回里附带：
+
+- 已创建的 `workitem`
+- 已成功上传的 `uploaded_attachments`
+- 当前失败的 `failed_attachment`
 
 ## 开发验证
 

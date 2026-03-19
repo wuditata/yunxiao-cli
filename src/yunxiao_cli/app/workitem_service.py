@@ -9,16 +9,24 @@ from typing import Any
 from ..domain.store import Store
 from ..infra.base import YunxiaoAPIError
 from ..infra.projex import ProjexAPI
+from .attachment_service import AttachmentService
 from .errors import CliError
 from .meta_service import MetaService
 from .profile_service import ProfileService
 
 
 class WorkitemService:
-    def __init__(self, store: Store, profile_service: ProfileService, meta_service: MetaService):
+    def __init__(
+        self,
+        store: Store,
+        profile_service: ProfileService,
+        meta_service: MetaService,
+        attachment_service: AttachmentService,
+    ):
         self.store = store
         self.profile_service = profile_service
         self.meta_service = meta_service
+        self.attachment_service = attachment_service
 
     def create(
         self,
@@ -31,10 +39,12 @@ class WorkitemService:
         desc_file: str | None = None,
         parent: str | None = None,
         assigned_to: str | None = None,
+        attachments: list[str] | None = None,
         field_pairs: list[str] | None = None,
         field_json_pairs: list[str] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
+        attachment_paths = self.attachment_service.validate_paths(attachments)
         workitem_type = self.meta_service.resolve_workitem_type(profile, category=category, type_value=type_value)
         description = self._read_description(desc, desc_file)
         assignee = self.meta_service.resolve_member(profile, assigned_to) if assigned_to else None
@@ -56,7 +66,40 @@ class WorkitemService:
             assigned_to=assignee,
             custom_field_values=custom_fields,
         )
-        return created, self._profile_dict(profile)
+        uploaded_attachments: list[dict[str, Any]] = []
+        workitem_id = created.get("id")
+        if attachment_paths:
+            if not workitem_id:
+                raise CliError("created workitem id missing, cannot upload attachments", response={"workitem": created})
+            for attachment_path in attachment_paths:
+                try:
+                    uploaded_attachments.append(
+                        self.attachment_service.upload_for_profile(
+                            profile.account,
+                            profile.org,
+                            workitem_id=str(workitem_id),
+                            file_path=attachment_path,
+                        )
+                    )
+                except (CliError, YunxiaoAPIError) as error:
+                    raise CliError(
+                        f"attachment upload failed: {attachment_path}",
+                        response={
+                            "workitem": created,
+                            "uploaded_attachments": uploaded_attachments,
+                            "failed_attachment": attachment_path,
+                            "attachment_error": {
+                                "message": str(error),
+                                "status_code": getattr(error, "status_code", None),
+                                "response": getattr(error, "response", {}),
+                            },
+                        },
+                    ) from error
+
+        result = dict(created)
+        if uploaded_attachments:
+            result["attachments"] = uploaded_attachments
+        return result, self._profile_dict(profile)
 
     def get(
         self,

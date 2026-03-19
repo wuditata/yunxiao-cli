@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 
+from .app.attachment_service import AttachmentService
 from .app.auth_service import AuthService
 from .app.comment_service import CommentService
 from .app.errors import CliError
@@ -17,15 +18,39 @@ from .infra.base import YunxiaoAPIError
 from .infra.config import CliConfig
 
 
-def _services() -> tuple[Store, ProfileService, MetaService, ProjectService, WorkitemService, CommentService, RelationService]:
+def _services() -> tuple[
+    Store,
+    ProfileService,
+    MetaService,
+    ProjectService,
+    WorkitemService,
+    AttachmentService,
+    CommentService,
+    RelationService,
+]:
     store = Store(root=CliConfig.data_root())
     meta_service = MetaService(store=store)
     profile_service = ProfileService(store=store, meta_service=meta_service)
     project_service = ProjectService(store=store, profile_service=profile_service)
-    workitem_service = WorkitemService(store=store, profile_service=profile_service, meta_service=meta_service)
+    attachment_service = AttachmentService(store=store, profile_service=profile_service)
+    workitem_service = WorkitemService(
+        store=store,
+        profile_service=profile_service,
+        meta_service=meta_service,
+        attachment_service=attachment_service,
+    )
     comment_service = CommentService(store=store, profile_service=profile_service)
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
-    return store, profile_service, meta_service, project_service, workitem_service, comment_service, relation_service
+    return (
+        store,
+        profile_service,
+        meta_service,
+        project_service,
+        workitem_service,
+        attachment_service,
+        comment_service,
+        relation_service,
+    )
 
 
 def _print_success(*, data, profile=None, warnings=None):
@@ -65,7 +90,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        store, profile_service, meta_service, project_service, workitem_service, comment_service, relation_service = _services()
+        (
+            store,
+            profile_service,
+            meta_service,
+            project_service,
+            workitem_service,
+            attachment_service,
+            comment_service,
+            relation_service,
+        ) = _services()
         if args.command == "login" and args.login_command == "token":
             account, organizations, projects, warnings = AuthService(store=store).login_token(
                 token=args.token,
@@ -143,6 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 desc_file=args.desc_file,
                 parent=args.parent,
                 assigned_to=args.assigned_to,
+                attachments=args.attachment,
                 field_pairs=args.field,
                 field_json_pairs=args.field_json,
             )
@@ -197,6 +232,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
+        if args.command == "workitem" and args.workitem_command == "attachment":
+            if args.workitem_attachment_command == "upload":
+                data, profile = attachment_service.upload(
+                    profile_name=args.profile,
+                    workitem_id=args.workitem_id,
+                    file_path=args.path,
+                    operator_id=args.operator_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if args.workitem_attachment_command == "list":
+                data, profile = attachment_service.list(
+                    profile_name=args.profile,
+                    workitem_id=args.workitem_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if args.workitem_attachment_command == "get":
+                data, profile = attachment_service.get(
+                    profile_name=args.profile,
+                    workitem_id=args.workitem_id,
+                    file_id=args.file,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
         if args.command == "comment" and args.comment_command == "add":
             data, profile = comment_service.add(
                 profile_name=args.profile,
@@ -230,7 +290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     except CliError as error:
-        _print_error(error)
+        _print_error(error, response=getattr(error, "response", None))
         return 1
     except YunxiaoAPIError as error:
         _print_error(error, status_code=error.status_code, response=error.response)
