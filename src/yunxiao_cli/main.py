@@ -199,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 category=args.category,
                 project=args.project,
                 sort=args.sort,
+                raw=args.raw,
             )
             _print_success(data=data, profile=profile)
             return 0
@@ -209,6 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 status=args.status,
                 project=args.project,
                 sort=args.sort,
+                raw=args.raw,
             )
             _print_success(data=data, profile=profile)
             return 0

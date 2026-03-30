@@ -223,6 +223,8 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
             if url.endswith("/workitems:search"):
                 payload = json.loads(kwargs["json"]["conditions"])
                 self.assertEqual("task-dev", payload["conditionGroups"][0][1]["value"][0])
+                if kwargs["json"]["page"] != 1:
+                    return FakeResponse([])
                 return FakeResponse([{"id": "1001", "subject": "子任务"}])
             raise AssertionError(url)
 
@@ -250,6 +252,12 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertEqual("https://img.example.com/1.png", get_result["data"]["description_images"][0])
         self.assertEqual("9001", get_result["data"]["parent"]["id"])
         self.assertEqual("1001", search_result["data"]["items"][0]["id"])
+        self.assertEqual("Task", search_result["data"]["items"][0]["category"])
+        self.assertEqual("功能开发", search_result["data"]["items"][0]["status"])
+        self.assertEqual("in_progress", search_result["data"]["items"][0]["statusPhase"])
+        self.assertEqual("AI 项目", search_result["data"]["items"][0]["project"])
+        self.assertNotIn("workitemType", search_result["data"]["items"][0])
+        self.assertEqual({"Task": 1}, search_result["data"]["summary"]["byCategory"])
 
     @patch("requests.request")
     def test_workitem_mine_filters_assigned_to_self(self, request_mock):
@@ -260,9 +268,9 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
                 if page != 1:
                     return FakeResponse([])
                 payload = {
-                    "Req": [{"id": "req-1", "assignedTo": "user-1"}],
+                    "Req": [{"id": "req-1", "assignedTo": "user-1", "status": {"displayName": "待评审"}}],
                     "Task": [{"id": "task-1", "assignedTo": "user-2"}],
-                    "Bug": [{"id": "bug-1", "assignedTo": {"userId": "user-1"}}],
+                    "Bug": [{"id": "bug-1", "assignedTo": {"userId": "user-1"}, "status": {"displayName": "已完成"}}],
                 }
                 return FakeResponse(payload[category])
             raise AssertionError(url)
@@ -277,6 +285,7 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(2, result["data"]["total"])
         self.assertEqual({"req-1", "bug-1"}, {item["id"] for item in result["data"]["items"]})
+        self.assertEqual({"todo": 1, "done": 1}, result["data"]["summary"]["byStatusPhase"])
 
     @patch("requests.request")
     def test_workitem_mine_aggregates_multiple_projects_with_full_paging_and_time_sort(self, request_mock):
@@ -289,13 +298,33 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
             page = payload["page"]
             data = {
                 ("456", "Req", 1): [
-                    {"id": "req-1", "assignedTo": "user-1", "gmtModified": "2026-03-26T09:00:00+08:00"},
+                    {
+                        "id": "req-1",
+                        "assignedTo": "user-1",
+                        "gmtModified": "2026-03-26T09:00:00+08:00",
+                        "spaceId": "456",
+                        "status": {"displayName": "待评审"},
+                    },
                 ],
                 ("456", "Task", 1): [
-                    {"id": "task-2", "assignedTo": "user-1", "gmtModified": "2026-03-26T12:00:00+08:00"},
+                    {
+                        "id": "task-2",
+                        "assignedTo": "user-1",
+                        "gmtModified": "2026-03-26T12:00:00+08:00",
+                        "spaceId": "456",
+                        "status": {"displayName": "功能开发"},
+                        "workitemType": {"id": "task-type"},
+                    },
                 ],
                 ("456", "Task", 2): [
-                    {"id": "task-1", "assignedTo": {"userId": "user-1"}, "gmtModified": "2026-03-26T11:00:00+08:00"},
+                    {
+                        "id": "task-1",
+                        "assignedTo": {"userId": "user-1"},
+                        "gmtModified": "2026-03-26T11:00:00+08:00",
+                        "spaceId": "456",
+                        "status": {"displayName": "测试中"},
+                        "workitemType": {"id": "task-type"},
+                    },
                 ],
                 ("456", "Bug", 1): [],
                 ("457", "Req", 1): [],
@@ -303,7 +332,24 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
                     {"id": "task-3", "assignedTo": "user-2", "gmtModified": "2026-03-26T13:00:00+08:00"},
                 ],
                 ("457", "Bug", 1): [
-                    {"id": "bug-1", "assignedTo": {"userId": "user-1"}, "gmtModified": "2026-03-26T10:00:00+08:00"},
+                    {
+                        "id": "bug-1",
+                        "assignedTo": {"userId": "user-1"},
+                        "gmtModified": "2026-03-26T10:00:00+08:00",
+                        "spaceId": "457",
+                        "status": {"displayName": "待修复"},
+                        "workitemType": {"id": "bug-type"},
+                    },
+                ],
+                ("457", "Bug", 2): [
+                    {
+                        "id": "bug-2",
+                        "assignedTo": {"userId": "user-1"},
+                        "gmtModified": "2026-03-26T08:00:00+08:00",
+                        "spaceId": "457",
+                        "status": {"displayName": "已取消"},
+                        "workitemType": {"id": "bug-type"},
+                    },
                 ],
             }
             return FakeResponse(data.get((project_id, category, page), []))
@@ -316,10 +362,12 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
                 result = run_cli_json(["workitem", "mine", "--profile", "pm-dev", "--sort", "time"])
 
         self.assertTrue(result["success"])
-        self.assertEqual(4, result["data"]["total"])
-        self.assertEqual(["task-2", "task-1", "bug-1", "req-1"], [item["id"] for item in result["data"]["items"]])
+        self.assertEqual(5, result["data"]["total"])
+        self.assertEqual(["task-2", "task-1", "bug-1", "req-1", "bug-2"], [item["id"] for item in result["data"]["items"]])
         self.assertEqual(["456", "457"], result["data"]["filters"]["projects"])
         self.assertEqual("time", result["data"]["filters"]["sort"])
+        self.assertEqual({"AI 项目": 3, "测试项目": 2}, result["data"]["summary"]["byProject"])
+        self.assertEqual({"in_progress": 2, "todo": 2, "canceled": 1}, result["data"]["summary"]["byStatusPhase"])
 
     @patch("requests.request")
     def test_workitem_search_supports_project_filter_full_paging_and_time_sort(self, request_mock):
@@ -334,10 +382,10 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
             page = payload["page"]
             data = {
                 1: [
-                    {"id": "task-2", "gmtModified": "2026-03-26T11:00:00+08:00"},
+                    {"id": "task-2", "gmtModified": "2026-03-26T11:00:00+08:00", "spaceId": "457"},
                 ],
                 2: [
-                    {"id": "task-1", "gmtModified": "2026-03-26T09:00:00+08:00"},
+                    {"id": "task-1", "gmtModified": "2026-03-26T09:00:00+08:00", "spaceId": "457"},
                 ],
             }
             return FakeResponse(data.get(page, []))
@@ -368,6 +416,74 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertEqual(["task-2", "task-1"], [item["id"] for item in result["data"]["items"]])
         self.assertEqual(["457"], result["data"]["filters"]["projects"])
         self.assertEqual("time", result["data"]["filters"]["sort"])
+        self.assertEqual("测试项目", result["data"]["items"][0]["project"])
+
+    @patch("requests.request")
+    def test_workitem_search_raw_keeps_original_item_fields(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems:search"):
+                return FakeResponse(
+                    [
+                        {
+                            "id": "task-1",
+                            "subject": "raw item",
+                            "spaceId": "456",
+                            "workitemType": {"id": "task-type", "name": "任务"},
+                            "status": {"displayName": "功能开发"},
+                        }
+                    ]
+                )
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "search",
+                        "--profile",
+                        "pm-dev",
+                        "--category",
+                        "Task",
+                        "--raw",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertIn("workitemType", result["data"]["items"][0])
+        self.assertNotIn("summary", result["data"])
+
+    @patch("requests.request")
+    def test_workitem_summary_phase_matches_real_workflow_keywords(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if not url.endswith("/workitems:search"):
+                raise AssertionError(url)
+            payload = kwargs["json"]
+            project_id = payload["spaceId"]
+            category = payload["category"]
+            if project_id != "456":
+                return FakeResponse([])
+            data = {
+                "Req": [{"id": "req-1", "assignedTo": "user-1", "status": {"displayName": "已选择"}}],
+                "Task": [{"id": "task-1", "assignedTo": "user-1", "status": {"displayName": "已解决"}}],
+                "Bug": [{"id": "bug-1", "assignedTo": "user-1", "status": {"displayName": "暂不修复"}}],
+            }
+            return FakeResponse(data[category])
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["workitem", "mine", "--profile", "pm-dev"])
+
+        by_id = {item["id"]: item["statusPhase"] for item in result["data"]["items"]}
+        self.assertEqual("todo", by_id["req-1"])
+        self.assertEqual("done", by_id["task-1"])
+        self.assertEqual("canceled", by_id["bug-1"])
 
     @patch("requests.request")
     def test_workitem_create_normalizes_escaped_newlines_in_desc(self, request_mock):

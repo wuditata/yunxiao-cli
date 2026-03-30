@@ -15,6 +15,8 @@ class InstallDocsTest(unittest.TestCase):
         self.assertIn("yunxiao_cli workitem", content)
         self.assertIn("yunxiao_cli workitem attachment upload", content)
         self.assertIn("--attachment", content)
+        self.assertIn("`workitem search` / `workitem mine` 默认返回摘要列表", content)
+        self.assertIn("需要详情时调用 `workitem get`", content)
 
     def test_install_script_mentions_yunxiao_cli_entrypoint(self):
         content = (ROOT / "install.sh").read_text(encoding="utf-8")

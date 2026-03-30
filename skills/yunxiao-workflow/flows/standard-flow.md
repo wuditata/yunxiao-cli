@@ -2,6 +2,12 @@
 
 多 agent 协作的产品类需求（默认需求）完整研发流程。创建需求时打标签 `standard-flow`，各 agent 按状态 + 标签过滤自己的任务。
 
+查询约定：
+
+- `workitem search` 只用于拿摘要列表和候选 `id`
+- 选中目标工作项后，必须再调用 `workitem get <id>` 读取正文、评论、附件、父项等详情
+- 不要假设 `search` 结果里自带完整详情字段
+
 ## 状态机
 
 ```
@@ -70,6 +76,11 @@ yunxiao_cli workitem search --profile <profile> \
 **步骤**：
 
 1. 读取需求文档，分析合理性和可行性
+
+```bash
+yunxiao_cli workitem get <id> --profile <profile> --with-parent
+```
+
 2. 在评论中写明评审意见：
 
 ```bash
@@ -98,6 +109,11 @@ yunxiao_cli workitem search --profile <profile> \
 **步骤**：
 
 1. 读取需求文档，制定设计方案
+
+```bash
+yunxiao_cli workitem get <id> --profile <profile> --with-parent
+```
+
 2. 为每个设计产物创建子任务（UI 流程图、交互说明、接口草稿等）：
 
 ```bash
@@ -128,6 +144,10 @@ yunxiao_cli workitem search --profile <profile> \
 **步骤**：
 
 1. 读取需求文档和设计子任务，推进需求至开发中：
+
+```bash
+yunxiao_cli workitem get <req_id> --profile <profile> --with-parent
+```
 
 ```bash
 yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发中"

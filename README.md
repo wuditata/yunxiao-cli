@@ -12,6 +12,7 @@
 - 字段输入友好：支持字段名或字段 ID，适合人手执行和自动化脚本
 - 输出统一为 JSON：天然适合 shell、CI、Agent、编辑器插件集成
 - 自带 Skill 集成：可和仓库内 `skills/yunxiao-workflow` 配套使用
+- `workitem search` / `workitem mine` 默认返回摘要，`workitem get` 返回详情
 
 ## 30 秒了解它能做什么
 
@@ -165,6 +166,7 @@ yunxiao_cli workitem mine --profile pm-dev --category all
 yunxiao_cli workitem mine --profile pm-dev --project 456,457 --sort time
 yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中"
 yunxiao_cli workitem search --profile pm-dev --project 456,457 --category Task --status "处理中" --sort time
+yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中" --raw
 yunxiao_cli workitem update 1001 --profile pm-dev --assigned-to "张三"
 yunxiao_cli workitem transition 1001 --profile pm-dev --to "已完成"
 # 状态流转有必填字段时，可在 transition 一次传入
@@ -189,6 +191,13 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 已执行 `yunxiao_cli profile use <name>` 后，命令可省略 `--profile`。
 
 `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一排序。
+
+查询返回约定：
+
+- `workitem search` / `workitem mine` 默认返回摘要列表和聚合统计，适合人和 Agent 先做筛选
+- 摘要字段固定为：`id`、`serial`、`subject`、`category`、`type`、`projectId`、`project`、`statusId`、`status`、`statusPhase`、`assigneeId`、`assignee`、`parentId`、`updatedAt`
+- 如需原始接口字段，显式传 `--raw`
+- 如需正文、评论、附件、父项等明细，调用 `workitem get <id>`
 
 ## 创建/更新/流转必填字段
 

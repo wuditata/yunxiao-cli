@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     workitem_mine_parser.add_argument("--category", help='工作项分类；传 "all" 时搜索全部分类')
     workitem_mine_parser.add_argument("--project", help="项目 ID 过滤，多个用逗号分隔；不传时使用 profile 内全部项目")
     workitem_mine_parser.add_argument("--sort", help="聚合排序方式，当前支持 time")
+    workitem_mine_parser.add_argument("--raw", action="store_true", help="返回原始工作项列表；默认返回摘要")
 
     workitem_search_parser = workitem_subparsers.add_parser("search", help="搜索工作项", description="按分类和状态搜索工作项。")
     workitem_search_parser.add_argument("--profile", help="profile 名称")
@@ -108,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     workitem_search_parser.add_argument("--status", help="状态名称或状态 ID")
     workitem_search_parser.add_argument("--project", help="项目 ID 过滤，多个用逗号分隔；不传时使用 profile 内全部项目")
     workitem_search_parser.add_argument("--sort", help="聚合排序方式，当前支持 time")
+    workitem_search_parser.add_argument("--raw", action="store_true", help="返回原始工作项列表；默认返回摘要")
 
     workitem_update_parser = workitem_subparsers.add_parser("update", help="更新工作项", description="更新标题、描述、负责人、状态或字段。")
     workitem_update_parser.add_argument("workitem_id", help="工作项 ID")

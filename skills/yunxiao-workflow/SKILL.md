@@ -11,6 +11,7 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 
 - 主入口是 `yunxiao_cli`
 - 输出统一为 JSON：`success`、`profile`、`data`、`warnings`
+- `workitem search` / `workitem mine` 默认返回摘要列表；需要详情时调用 `workitem get`
 
 ## 项目级配置
 
@@ -87,6 +88,7 @@ yunxiao_cli workitem mine --category all --profile <profile>
 yunxiao_cli workitem mine --category all --project <project_id_1>,<project_id_2> --sort time --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
+yunxiao_cli workitem search --category Task --status "处理中" --profile <profile> --raw
 yunxiao_cli workitem update 1001 --desc-file ./req.md --profile <profile>
 yunxiao_cli workitem transition 1001 --to "已完成" --profile <profile>
 # 目标状态有必填字段时，transition 支持直接传字段
@@ -142,6 +144,12 @@ yunxiao_cli comment list --workitem <id> --profile <profile>
 yunxiao_cli relation add --parent <id> --child <id> --profile <profile>
 yunxiao_cli relation children --parent <id> --profile <profile>
 ```
+
+查询约定：
+
+- `workitem search` / `workitem mine` 默认返回摘要字段：`id`、`serial`、`subject`、`category`、`type`、`projectId`、`project`、`statusId`、`status`、`statusPhase`、`assigneeId`、`assignee`、`parentId`、`updatedAt`
+- 默认不要假设搜索结果里有完整详情字段；需要正文、评论、附件、父项等详情时，拿摘要里的 `id` 再调用 `workitem get`
+- 只有排障或兼容旧脚本时才使用 `--raw`
 
 ## 约束
 

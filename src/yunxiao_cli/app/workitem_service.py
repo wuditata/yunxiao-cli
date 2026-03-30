@@ -14,6 +14,7 @@ from .attachment_service import AttachmentService
 from .errors import CliError
 from .meta_service import MetaService
 from .profile_service import ProfileService
+from .workitem_summary import WorkitemSummaryBuilder
 
 
 class WorkitemService:
@@ -28,6 +29,7 @@ class WorkitemService:
         self.profile_service = profile_service
         self.meta_service = meta_service
         self.attachment_service = attachment_service
+        self.summary_builder = WorkitemSummaryBuilder(meta_service)
 
     def create(
         self,
@@ -131,6 +133,7 @@ class WorkitemService:
         category: str | None = None,
         project: str | None = None,
         sort: str | None = None,
+        raw: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         account = self.store.get_account(profile.account)
@@ -144,20 +147,34 @@ class WorkitemService:
         items: list[dict[str, Any]] = []
         for project_id in projects:
             for category_name in categories:
-                items.extend(self._search_all_by_category(api, profile.org, project_id, category_name))
+                items.extend(
+                    self._decorate_search_items(
+                        self._search_all_by_category(api, profile.org, project_id, category_name),
+                        project_id=project_id,
+                        category=category_name,
+                    )
+                )
 
         mine_items = [item for item in items if self._is_assigned_to_self(item, user_id=user_id, user_name=user_name)]
         mine_items = self._sort_items(mine_items, sort_value)
-        return {
-            "items": mine_items,
-            "total": len(mine_items),
-            "filters": {
-                "category": category or "all",
-                "assignedTo": "self",
-                "projects": projects,
-                "sort": sort_value,
-            },
-        }, self._profile_dict(profile)
+        filters = {
+            "category": category or "all",
+            "assignedTo": "self",
+            "projects": projects,
+            "sort": sort_value,
+        }
+        if raw:
+            return {
+                "items": mine_items,
+                "total": len(mine_items),
+                "filters": filters,
+            }, self._profile_dict(profile)
+        return self.summary_builder.build_payload(
+            profile=profile,
+            projects=projects,
+            items=mine_items,
+            filters=filters,
+        ), self._profile_dict(profile)
 
     def search(
         self,
@@ -167,6 +184,7 @@ class WorkitemService:
         status: str | None = None,
         project: str | None = None,
         sort: str | None = None,
+        raw: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         api = self._projex_api(profile)
@@ -186,26 +204,39 @@ class WorkitemService:
                         project_id=project_id,
                     )
                 items.extend(
-                    self._search_all_by_category(
-                        api,
-                        profile.org,
-                        project_id,
-                        category_name,
-                        status=resolved_status,
+                    self._decorate_search_items(
+                        self._search_all_by_category(
+                            api,
+                            profile.org,
+                            project_id,
+                            category_name,
+                            status=resolved_status,
+                        ),
+                        project_id=project_id,
+                        category=category_name,
+                        status_id=resolved_status,
                     )
                 )
 
         result = self._sort_items(items, sort_value)
-        return {
-            "items": result,
-            "total": len(result),
-            "filters": {
-                "category": category or "all",
-                "status": status,
-                "projects": projects,
-                "sort": sort_value,
-            },
-        }, self._profile_dict(profile)
+        filters = {
+            "category": category or "all",
+            "status": status,
+            "projects": projects,
+            "sort": sort_value,
+        }
+        if raw:
+            return {
+                "items": result,
+                "total": len(result),
+                "filters": filters,
+            }, self._profile_dict(profile)
+        return self.summary_builder.build_payload(
+            profile=profile,
+            projects=projects,
+            items=result,
+            filters=filters,
+        ), self._profile_dict(profile)
 
     def update(
         self,
@@ -563,6 +594,24 @@ class WorkitemService:
                 break
             items.extend(batch)
         return items
+
+    @staticmethod
+    def _decorate_search_items(
+        items: list[dict[str, Any]],
+        *,
+        project_id: str,
+        category: str,
+        status_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for item in items:
+            normalized = dict(item)
+            normalized.setdefault("spaceId", project_id)
+            normalized.setdefault("categoryId", category)
+            if status_id and not isinstance(normalized.get("status"), dict):
+                normalized["status"] = {"id": status_id}
+            result.append(normalized)
+        return result
 
     def _resolve_categories(self, category: str | None) -> list[str]:
         if not category or category.lower() == "all":
