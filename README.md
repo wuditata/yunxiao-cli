@@ -85,7 +85,7 @@ Copy-Item .yunxiao.json.temple .yunxiao.json
 
 - `token`：云效登录 token
 - `profile`：CLI profile 名称
-- `project`：当前仓库对应的云效项目 ID
+- `project`：支持三种写法：单项目 ID、逗号分隔字符串、项目 ID 数组
 - `assignee`：当前用户在云效中的标识
 
 创建后按实际值替换占位符，再执行：
@@ -94,6 +94,12 @@ Copy-Item .yunxiao.json.temple .yunxiao.json
 yunxiao_cli login token <token> --account <assignee>
 yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
 yunxiao_cli profile use <profile>
+```
+
+多项目场景可直接传逗号分隔：
+
+```bash
+yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
 ## 项目结构
@@ -126,6 +132,12 @@ yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_
 yunxiao_cli profile use pm-dev
 ```
 
+多项目 profile：
+
+```bash
+yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id_1>,<project_id_2>
+```
+
 查看元数据：
 
 ```bash
@@ -150,7 +162,9 @@ yunxiao_cli workitem create --profile pm-dev --category Bug --subject "登录失
 yunxiao_cli workitem create --profile pm-dev --category Req --subject "附带材料" --attachment ./spec.md --attachment ./demo.png
 yunxiao_cli workitem get 1001 --profile pm-dev --with-parent
 yunxiao_cli workitem mine --profile pm-dev --category all
+yunxiao_cli workitem mine --profile pm-dev --project 456,457 --sort time
 yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中"
+yunxiao_cli workitem search --profile pm-dev --project 456,457 --category Task --status "处理中" --sort time
 yunxiao_cli workitem update 1001 --profile pm-dev --assigned-to "张三"
 yunxiao_cli workitem transition 1001 --profile pm-dev --to "已完成"
 # 状态流转有必填字段时，可在 transition 一次传入
@@ -160,6 +174,8 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 创建工作项常用参数：
 
 - `--category`：工作项分类，如 `Req`、`Task`、`Bug`
+- `--project`：项目 ID 过滤，多个用逗号分隔；不传时使用当前 profile 的全部项目
+- `--sort`：聚合排序方式，当前支持 `time`
 - `--type`：工作项类型 ID 或名称；不传时按分类取默认类型
 - `--subject`：工作项标题
 - `--desc`：直接传入描述内容，适合短文本
@@ -171,6 +187,8 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 - `--field-json`：一次传完整字段集，推荐，如 `--field-json '{"严重程度":"3-一般"}'`
 
 已执行 `yunxiao_cli profile use <name>` 后，命令可省略 `--profile`。
+
+`workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一排序。
 
 ## 创建/更新/流转必填字段
 

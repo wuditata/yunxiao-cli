@@ -17,33 +17,46 @@ class MetaService:
         self.store = store
 
     def get_meta(self, profile: ProfileConfig) -> MetaCache:
-        cache = self.store.find_meta_cache(profile.account, profile.org, profile.project)
+        return self.get_meta_for_project(profile, profile.project)
+
+    def get_meta_for_project(self, profile: ProfileConfig, project_id: str) -> MetaCache:
+        cache = self.store.find_meta_cache(profile.account, profile.org, project_id)
         if cache is None or self._should_refresh(cache):
-            return self.refresh(profile)
+            return self.refresh_for_project(profile, project_id)
         return cache
 
     def refresh(self, profile: ProfileConfig) -> MetaCache:
+        primary_cache: MetaCache | None = None
+        for project_id in profile.projects:
+            cache = self.refresh_for_project(profile, project_id)
+            if primary_cache is None:
+                primary_cache = cache
+        if primary_cache is None:
+            raise CliError("profile project is empty")
+        return primary_cache
+
+    def refresh_for_project(self, profile: ProfileConfig, project_id: str) -> MetaCache:
         account = self.store.get_account(profile.account)
         api = ProjexAPI(token=account.token)
-        project_info = api.get_project(profile.org, profile.project)
+        project_info = api.get_project(profile.org, project_id)
         workitem_types: list[dict[str, Any]] = []
         statuses: dict[str, list[dict[str, Any]]] = {}
         fields: dict[str, list[dict[str, Any]]] = {}
 
         for category in self.CATEGORY_CHOICES:
-            category_types = api.get_work_item_types(profile.org, profile.project, category=category)
+            category_types = api.get_work_item_types(profile.org, project_id, category=category)
             workitem_types.extend(category_types)
             for item in category_types:
                 type_id = item.get("id")
                 if not type_id:
                     continue
-                statuses[type_id] = api.get_work_item_workflow_statuses(profile.org, profile.project, type_id)
-                fields[type_id] = api.get_work_item_type_fields(profile.org, profile.project, type_id)
+                statuses[type_id] = api.get_work_item_workflow_statuses(profile.org, project_id, type_id)
+                fields[type_id] = api.get_work_item_type_fields(profile.org, project_id, type_id)
 
         cache = MetaCache(
             account=profile.account,
             org=profile.org,
-            project=profile.project,
+            project=project_id,
             project_info=project_info,
             workitem_types=workitem_types,
             statuses=statuses,
@@ -56,8 +69,13 @@ class MetaService:
         self.store.save_meta_cache(cache)
         return cache
 
-    def list_types(self, profile: ProfileConfig, category: str | None = None) -> list[dict[str, Any]]:
-        items = self.get_meta(profile).workitem_types
+    def list_types(
+        self,
+        profile: ProfileConfig,
+        category: str | None = None,
+        project_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        items = self.get_meta_for_project(profile, project_id or profile.project).workitem_types
         if not category:
             return items
         return [item for item in items if item.get("categoryId") == category]
@@ -68,9 +86,14 @@ class MetaService:
         *,
         category: str | None = None,
         workitem_type_id: str | None = None,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        meta = self.get_meta(profile)
-        type_id = workitem_type_id or self.resolve_workitem_type(profile, category=category)["id"]
+        meta = self.get_meta_for_project(profile, project_id or profile.project)
+        type_id = workitem_type_id or self.resolve_workitem_type(
+            profile,
+            category=category,
+            project_id=project_id,
+        )["id"]
         return meta.statuses.get(type_id, [])
 
     def list_fields(
@@ -79,9 +102,14 @@ class MetaService:
         *,
         category: str | None = None,
         workitem_type_id: str | None = None,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        meta = self.get_meta(profile)
-        type_id = workitem_type_id or self.resolve_workitem_type(profile, category=category)["id"]
+        meta = self.get_meta_for_project(profile, project_id or profile.project)
+        type_id = workitem_type_id or self.resolve_workitem_type(
+            profile,
+            category=category,
+            project_id=project_id,
+        )["id"]
         return meta.fields.get(type_id, [])
 
     def resolve_workitem_type(
@@ -90,8 +118,9 @@ class MetaService:
         *,
         category: str | None = None,
         type_value: str | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
-        candidates = self.list_types(profile, category=category)
+        candidates = self.list_types(profile, category=category, project_id=project_id)
         if type_value:
             matched = [
                 item for item in candidates
@@ -117,8 +146,14 @@ class MetaService:
         *,
         workitem_type_id: str | None = None,
         category: str | None = None,
+        project_id: str | None = None,
     ) -> str:
-        candidates = self.list_statuses(profile, category=category, workitem_type_id=workitem_type_id)
+        candidates = self.list_statuses(
+            profile,
+            category=category,
+            workitem_type_id=workitem_type_id,
+            project_id=project_id,
+        )
         if any(status_value == item.get("id") for item in candidates):
             return status_value
 

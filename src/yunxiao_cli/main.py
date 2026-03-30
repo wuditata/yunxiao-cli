@@ -197,6 +197,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             data, profile = workitem_service.mine(
                 profile_name=args.profile,
                 category=args.category,
+                project=args.project,
+                sort=args.sort,
             )
             _print_success(data=data, profile=profile)
             return 0
@@ -205,6 +207,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_name=args.profile,
                 category=args.category,
                 status=args.status,
+                project=args.project,
+                sort=args.sort,
             )
             _print_success(data=data, profile=profile)
             return 0

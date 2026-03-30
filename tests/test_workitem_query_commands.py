@@ -62,6 +62,57 @@ def seed_store(root: Path) -> Store:
     return store
 
 
+def seed_multi_project_store(root: Path) -> Store:
+    store = Store(root=root)
+    store.save_account(
+        AccountConfig(
+            name="pm-a",
+            token="token-a",
+            user={"id": "user-1", "name": "Alice"},
+            organizations=[{"id": "123", "name": "FOXHIS"}],
+        )
+    )
+    store.save_profile(
+        ProfileConfig(
+            name="pm-dev",
+            account="pm-a",
+            org="123",
+            project="456",
+            projects=["456", "457"],
+        )
+    )
+    store.set_default_profile("pm-dev")
+    for project_id, project_name in (("456", "AI 项目"), ("457", "测试项目")):
+        store.save_meta_cache(
+            MetaCache(
+                account="pm-a",
+                org="123",
+                project=project_id,
+                project_info={"id": project_id, "name": project_name},
+                workitem_types=[
+                    {"id": "req-type", "categoryId": "Req", "defaultType": True, "name": "产品需求"},
+                    {"id": "task-type", "categoryId": "Task", "defaultType": True, "name": "任务"},
+                    {"id": "bug-type", "categoryId": "Bug", "defaultType": True, "name": "缺陷"},
+                ],
+                statuses={
+                    "req-type": [{"id": "req-new", "name": "需求创建", "displayName": "需求创建"}],
+                    "task-type": [{"id": "task-dev", "name": "功能开发", "displayName": "功能开发"}],
+                    "bug-type": [{"id": "bug-new", "name": "待修复", "displayName": "待修复"}],
+                },
+                fields={
+                    "req-type": [{"id": "field-subject", "name": "标题"}],
+                    "task-type": [],
+                    "bug-type": [{"id": "field-severity", "name": "严重程度"}],
+                },
+                members=[{"id": "member-1", "userId": "user-1", "name": "Alice"}],
+                updated_at="2099-01-01T00:00:00+00:00",
+                ttl_seconds=3600,
+                invalidated=False,
+            )
+        )
+    return store
+
+
 class WorkitemQueryCommandsTest(unittest.TestCase):
     @patch("requests.request")
     def test_workitem_create_uses_default_type_from_category(self, request_mock):
@@ -205,6 +256,9 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         def request_side_effect(method, url, **kwargs):
             if url.endswith("/workitems:search"):
                 category = kwargs["json"]["category"]
+                page = kwargs["json"]["page"]
+                if page != 1:
+                    return FakeResponse([])
                 payload = {
                     "Req": [{"id": "req-1", "assignedTo": "user-1"}],
                     "Task": [{"id": "task-1", "assignedTo": "user-2"}],
@@ -223,6 +277,97 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(2, result["data"]["total"])
         self.assertEqual({"req-1", "bug-1"}, {item["id"] for item in result["data"]["items"]})
+
+    @patch("requests.request")
+    def test_workitem_mine_aggregates_multiple_projects_with_full_paging_and_time_sort(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if not url.endswith("/workitems:search"):
+                raise AssertionError(url)
+            payload = kwargs["json"]
+            project_id = payload["spaceId"]
+            category = payload["category"]
+            page = payload["page"]
+            data = {
+                ("456", "Req", 1): [
+                    {"id": "req-1", "assignedTo": "user-1", "gmtModified": "2026-03-26T09:00:00+08:00"},
+                ],
+                ("456", "Task", 1): [
+                    {"id": "task-2", "assignedTo": "user-1", "gmtModified": "2026-03-26T12:00:00+08:00"},
+                ],
+                ("456", "Task", 2): [
+                    {"id": "task-1", "assignedTo": {"userId": "user-1"}, "gmtModified": "2026-03-26T11:00:00+08:00"},
+                ],
+                ("456", "Bug", 1): [],
+                ("457", "Req", 1): [],
+                ("457", "Task", 1): [
+                    {"id": "task-3", "assignedTo": "user-2", "gmtModified": "2026-03-26T13:00:00+08:00"},
+                ],
+                ("457", "Bug", 1): [
+                    {"id": "bug-1", "assignedTo": {"userId": "user-1"}, "gmtModified": "2026-03-26T10:00:00+08:00"},
+                ],
+            }
+            return FakeResponse(data.get((project_id, category, page), []))
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_multi_project_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["workitem", "mine", "--profile", "pm-dev", "--sort", "time"])
+
+        self.assertTrue(result["success"])
+        self.assertEqual(4, result["data"]["total"])
+        self.assertEqual(["task-2", "task-1", "bug-1", "req-1"], [item["id"] for item in result["data"]["items"]])
+        self.assertEqual(["456", "457"], result["data"]["filters"]["projects"])
+        self.assertEqual("time", result["data"]["filters"]["sort"])
+
+    @patch("requests.request")
+    def test_workitem_search_supports_project_filter_full_paging_and_time_sort(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if not url.endswith("/workitems:search"):
+                raise AssertionError(url)
+            payload = kwargs["json"]
+            self.assertEqual("457", payload["spaceId"])
+            self.assertEqual("Task", payload["category"])
+            conditions = json.loads(payload["conditions"])
+            self.assertEqual("task-dev", conditions["conditionGroups"][0][1]["value"][0])
+            page = payload["page"]
+            data = {
+                1: [
+                    {"id": "task-2", "gmtModified": "2026-03-26T11:00:00+08:00"},
+                ],
+                2: [
+                    {"id": "task-1", "gmtModified": "2026-03-26T09:00:00+08:00"},
+                ],
+            }
+            return FakeResponse(data.get(page, []))
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_multi_project_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "workitem",
+                        "search",
+                        "--profile",
+                        "pm-dev",
+                        "--project",
+                        "457",
+                        "--category",
+                        "Task",
+                        "--status",
+                        "功能开发",
+                        "--sort",
+                        "time",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(["task-2", "task-1"], [item["id"] for item in result["data"]["items"]])
+        self.assertEqual(["457"], result["data"]["filters"]["projects"])
+        self.assertEqual("time", result["data"]["filters"]["sort"])
 
     @patch("requests.request")
     def test_workitem_create_normalizes_escaped_newlines_in_desc(self, request_mock):

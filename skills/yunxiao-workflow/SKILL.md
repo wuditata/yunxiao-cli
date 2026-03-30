@@ -22,7 +22,7 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 {
   "token": "<token>",
   "profile": "<profile>",
-  "project": "<project_id>",
+  "project": ["<project_id>"],
   "assignee": "<assignee>"
 }
 ```
@@ -31,7 +31,7 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 |------|------|
 | `token` | 云效登录 token，用于 `yunxiao_cli login token <token>` |
 | `profile` | CLI profile 名，作为所有命令的 `--profile` 参数 |
-| `project` | 当前代码仓对应的云效项目 ID |
+| `project` | 支持单项目 ID、逗号分隔的多个项目 ID，或项目 ID 数组 |
 | `assignee` | 当前用户身份标识，用于过滤"我的工作项"、"指派负责人"等场景 |
 
 ## 初始化流程
@@ -42,6 +42,12 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 yunxiao_cli login token <token> --account <assignee>
 yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
 yunxiao_cli profile use <profile>
+```
+
+多项目可直接使用：
+
+```bash
+yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
 ## 使用流程
@@ -78,7 +84,9 @@ yunxiao_cli workitem create --category Req --subject "附带材料" --profile <p
   --attachment ./spec.md --attachment ./demo.png
 yunxiao_cli workitem get 1001 --profile <profile>
 yunxiao_cli workitem mine --category all --profile <profile>
+yunxiao_cli workitem mine --category all --project <project_id_1>,<project_id_2> --sort time --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
+yunxiao_cli workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
 yunxiao_cli workitem update 1001 --desc-file ./req.md --profile <profile>
 yunxiao_cli workitem transition 1001 --to "已完成" --profile <profile>
 # 目标状态有必填字段时，transition 支持直接传字段
@@ -139,6 +147,7 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 
 - Agent 读取项目根目录 `.yunxiao.json` 获取 `profile`，显式传 `--profile`
 - 状态、类型、字段、成员解析统一走项目缓存
+- `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一按 `--sort` 排序
 
 ## 工作项内容模板与规范
 

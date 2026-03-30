@@ -32,22 +32,64 @@ class ProfileConfig:
     account: str
     org: str
     project: str
+    projects: list[str] = field(default_factory=list)
     created_at: str = ""
     project_ref: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        normalized = self._normalize_projects(project=self.project, projects=self.projects)
+        self.projects = normalized
+        self.project = normalized[0]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ProfileConfig":
+        project = data.get("project")
+        projects = data.get("projects") or []
+        if isinstance(project, list):
+            projects = project if not projects else projects
+            project = project[0] if project else ""
+        elif not project and projects:
+            project = projects[0]
         return cls(
             name=data["name"],
             account=data["account"],
             org=data["org"],
-            project=data["project"],
+            project=project,
+            projects=projects,
             created_at=data.get("created_at") or "",
             project_ref=data.get("project_ref") or {},
         )
+
+    @staticmethod
+    def _normalize_projects(project: str | list[str] | None, projects: list[str] | str | None) -> list[str]:
+        values: list[str] = []
+
+        def append(raw: Any) -> None:
+            text = str(raw).strip()
+            if not text:
+                return
+            for item in text.split(","):
+                value = item.strip()
+                if value and value not in values:
+                    values.append(value)
+
+        if isinstance(project, list):
+            for item in project:
+                append(item)
+        else:
+            append(project)
+        if isinstance(projects, list):
+            for item in projects:
+                append(item)
+        elif projects:
+            append(projects)
+
+        if not values:
+            raise ValueError("project is required")
+        return values
 
 
 @dataclass(slots=True)

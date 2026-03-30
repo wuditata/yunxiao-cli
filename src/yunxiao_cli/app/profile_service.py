@@ -30,16 +30,31 @@ class ProfileService:
         existing = self.store.find_profile(name)
         if existing is not None and existing.created_at:
             created_at = existing.created_at
-        profile = ProfileConfig(name=name, account=account_name, org=org, project=project, created_at=created_at)
+        projects = self._parse_projects(project)
+        profile = ProfileConfig(
+            name=name,
+            account=account_name,
+            org=org,
+            project=projects[0],
+            projects=projects,
+            created_at=created_at,
+        )
         meta = self.meta_service.refresh(profile)
         profile.project_ref = {
-            "id": meta.project_info.get("id", project),
+            "id": meta.project_info.get("id", profile.project),
             "name": meta.project_info.get("name", ""),
         }
         self.store.save_profile(profile)
         if set_default:
             self.store.set_default_profile(name)
         return profile, meta.to_dict()
+
+    @staticmethod
+    def _parse_projects(project_value: str) -> list[str]:
+        items = [item.strip() for item in str(project_value).split(",") if item.strip()]
+        if not items:
+            raise CliError("project is required")
+        return items
 
     def list_profiles(self) -> list[dict]:
         default_name = self.store.get_default_profile_name()

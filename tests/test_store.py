@@ -48,6 +48,33 @@ class StoreTest(unittest.TestCase):
             self.assertEqual("token-b", store.get_account("dev-a").token)
             self.assertEqual("pm-dev", store.get_default_profile_name())
 
+    def test_profile_config_supports_multiple_projects(self):
+        profile = ProfileConfig.from_dict(
+            {
+                "name": "pm-dev",
+                "account": "pm-a",
+                "org": "123",
+                "project": "456,457",
+            }
+        )
+
+        self.assertEqual("456", profile.project)
+        self.assertEqual(["456", "457"], profile.projects)
+        self.assertEqual(["456", "457"], profile.to_dict()["projects"])
+
+    def test_profile_config_supports_project_list_value(self):
+        profile = ProfileConfig.from_dict(
+            {
+                "name": "pm-dev",
+                "account": "pm-a",
+                "org": "123",
+                "project": ["456", "457"],
+            }
+        )
+
+        self.assertEqual("456", profile.project)
+        self.assertEqual(["456", "457"], profile.projects)
+
 
 if __name__ == "__main__":
     unittest.main()

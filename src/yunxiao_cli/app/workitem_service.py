@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
@@ -128,25 +129,33 @@ class WorkitemService:
         *,
         profile_name: str | None,
         category: str | None = None,
+        project: str | None = None,
+        sort: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         account = self.store.get_account(profile.account)
         user_id = str(account.user.get("id") or account.user.get("userId") or "")
         user_name = str(account.user.get("name") or "")
         categories = self._resolve_categories(category)
+        projects = self._resolve_projects(profile, project)
+        sort_value = self._resolve_sort(sort)
 
         api = self._projex_api(profile)
         items: list[dict[str, Any]] = []
-        for category_name in categories:
-            items.extend(self._search_all_by_category(api, profile.org, profile.project, category_name))
+        for project_id in projects:
+            for category_name in categories:
+                items.extend(self._search_all_by_category(api, profile.org, project_id, category_name))
 
         mine_items = [item for item in items if self._is_assigned_to_self(item, user_id=user_id, user_name=user_name)]
+        mine_items = self._sort_items(mine_items, sort_value)
         return {
             "items": mine_items,
             "total": len(mine_items),
             "filters": {
                 "category": category or "all",
                 "assignedTo": "self",
+                "projects": projects,
+                "sort": sort_value,
             },
         }, self._profile_dict(profile)
 
@@ -156,21 +165,47 @@ class WorkitemService:
         profile_name: str | None,
         category: str | None = None,
         status: str | None = None,
+        project: str | None = None,
+        sort: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
-        resolved_status = None
-        if status and category:
-            resolved_status = self.meta_service.resolve_status(profile, status, category=category)
-        elif status:
-            resolved_status = status
         api = self._projex_api(profile)
-        result = api.search_workitems(
-            org_id=profile.org,
-            project_id=profile.project,
-            category=category,
-            status=resolved_status,
-        )
-        return {"items": result}, self._profile_dict(profile)
+        categories = self._resolve_categories(category)
+        projects = self._resolve_projects(profile, project)
+        sort_value = self._resolve_sort(sort)
+
+        items: list[dict[str, Any]] = []
+        for project_id in projects:
+            for category_name in categories:
+                resolved_status = status
+                if status:
+                    resolved_status = self.meta_service.resolve_status(
+                        profile,
+                        status,
+                        category=category_name,
+                        project_id=project_id,
+                    )
+                items.extend(
+                    self._search_all_by_category(
+                        api,
+                        profile.org,
+                        project_id,
+                        category_name,
+                        status=resolved_status,
+                    )
+                )
+
+        result = self._sort_items(items, sort_value)
+        return {
+            "items": result,
+            "total": len(result),
+            "filters": {
+                "category": category or "all",
+                "status": status,
+                "projects": projects,
+                "sort": sort_value,
+            },
+        }, self._profile_dict(profile)
 
     def update(
         self,
@@ -253,6 +288,7 @@ class WorkitemService:
             "account": profile.account,
             "org": profile.org,
             "project": profile.project,
+            "projects": profile.projects,
         }
 
     @staticmethod
@@ -509,6 +545,8 @@ class WorkitemService:
         org_id: str,
         project_id: str,
         category: str,
+        *,
+        status: str | None = None,
     ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         per_page = 100
@@ -517,14 +555,13 @@ class WorkitemService:
                 org_id=org_id,
                 project_id=project_id,
                 category=category,
+                status=status,
                 page=page,
                 per_page=per_page,
             )
             if not batch:
                 break
             items.extend(batch)
-            if len(batch) < per_page:
-                break
         return items
 
     def _resolve_categories(self, category: str | None) -> list[str]:
@@ -533,6 +570,47 @@ class WorkitemService:
         if category not in self.meta_service.CATEGORY_CHOICES:
             raise CliError(f"invalid category: {category}")
         return [category]
+
+    @staticmethod
+    def _resolve_projects(profile, project: str | None) -> list[str]:
+        if not project:
+            return list(profile.projects)
+        values = [item.strip() for item in project.split(",") if item.strip()]
+        if not values:
+            raise CliError("project filter is empty")
+        missing = [item for item in values if item not in profile.projects]
+        if missing:
+            raise CliError(f"project not found in profile: {', '.join(missing)}")
+        return values
+
+    @staticmethod
+    def _resolve_sort(sort: str | None) -> str:
+        if not sort:
+            return "time"
+        if sort != "time":
+            raise CliError(f"invalid sort: {sort}")
+        return sort
+
+    @staticmethod
+    def _sort_items(items: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
+        if sort == "time":
+            return sorted(items, key=WorkitemService._sort_time_value, reverse=True)
+        return items
+
+    @staticmethod
+    def _sort_time_value(item: dict[str, Any]) -> float:
+        for key in ("gmtModified", "updateStatusAt", "gmtCreate"):
+            value = item.get(key)
+            if value is None:
+                continue
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+        return 0.0
 
     @staticmethod
     def _is_assigned_to_self(item: dict[str, Any], *, user_id: str, user_name: str) -> bool:
