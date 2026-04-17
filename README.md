@@ -254,6 +254,46 @@ yunxiao_cli workitem attachment get 1001 --profile pm-dev --file file-1
 - 已成功上传的 `uploaded_attachments`
 - 当前失败的 `failed_attachment`
 
+## 知识库下载
+
+知识库下载走云效 Thoughts 的浏览器态能力，不依赖 OpenAPI token，而是依赖浏览器 Cookie。
+
+首次使用前请先安装 Playwright 浏览器：
+
+```bash
+playwright install chromium
+```
+
+支持两种认证方式：
+
+- 直接传 `--cookie`
+- 传 `--cookie-file` 读取浏览器导出的 Cookie JSON
+- 从本机浏览器导入 `--browser`，当前支持 `chrome`、`edge`、`brave`、`firefox`
+- 支持 `--thread` 控制并发导出数，默认 `3`
+
+示例：
+
+```bash
+# 直接传 Cookie
+yunxiao_cli knowledge download \
+  --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
+  --cookie "<your_cookie>"
+
+# 传浏览器导出的 Cookie JSON 文件
+yunxiao_cli knowledge download \
+  --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
+  --cookie-file ./edge-cookies.json
+
+# 从 Edge 导入 Cookie
+yunxiao_cli knowledge download \
+  --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
+  --browser edge \
+  --thread 3 \
+  --output ./thoughts-export
+```
+
+下载结果会保持知识库目录结构，并导出为 Markdown。
+
 ## 开发验证
 
 ```bash

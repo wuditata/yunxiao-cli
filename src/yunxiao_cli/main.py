@@ -7,6 +7,7 @@ from .app.attachment_service import AttachmentService
 from .app.auth_service import AuthService
 from .app.comment_service import CommentService
 from .app.errors import CliError
+from .app.knowledge_service import KnowledgeService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
 from .app.project_service import ProjectService
@@ -27,6 +28,7 @@ def _services() -> tuple[
     AttachmentService,
     CommentService,
     RelationService,
+    KnowledgeService,
 ]:
     store = Store(root=CliConfig.data_root())
     meta_service = MetaService(store=store)
@@ -41,6 +43,7 @@ def _services() -> tuple[
     )
     comment_service = CommentService(store=store, profile_service=profile_service)
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
+    knowledge_service = KnowledgeService()
     return (
         store,
         profile_service,
@@ -50,6 +53,7 @@ def _services() -> tuple[
         attachment_service,
         comment_service,
         relation_service,
+        knowledge_service,
     )
 
 
@@ -99,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             attachment_service,
             comment_service,
             relation_service,
+            knowledge_service,
         ) = _services()
         if args.command == "login" and args.login_command == "token":
             account, organizations, projects, warnings = AuthService(store=store).login_token(
@@ -292,6 +297,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parent_id=args.parent,
             )
             _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and args.knowledge_command == "download":
+            data = knowledge_service.download(
+                url=args.url,
+                output_dir=args.output,
+                cookie=args.cookie,
+                cookie_file=args.cookie_file,
+                browser=args.browser,
+                concurrency=args.concurrency,
+            )
+            _print_success(data=data)
             return 0
         parser.print_help()
         return 0
