@@ -68,9 +68,15 @@ yunxiao_cli --help
 
 ## 首次使用
 
-项目根目录下的 `.yunxiao.json` 主要给 `skills/yunxiao-workflow` 读取项目默认配置。
+项目根目录下的 `.yunxiao.json` 用于保存 repo 级默认上下文，CLI 和 `skills/yunxiao-workflow` 都会读取它。
 
-首次接入时，可直接基于模板创建：
+首次接入时，推荐直接生成最小配置：
+
+```bash
+yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project_id>
+```
+
+也可以基于模板创建：
 
 ```bash
 cp .yunxiao.json.temple .yunxiao.json
@@ -84,12 +90,12 @@ Copy-Item .yunxiao.json.temple .yunxiao.json
 
 模板字段说明：
 
-- `token`：云效登录 token
 - `profile`：CLI profile 名称
-- `project`：支持三种写法：单项目 ID、逗号分隔字符串、项目 ID 数组
-- `assignee`：当前用户在云效中的标识
+- `assignee`：当前项目默认负责人
+- `project`：当前 repo 绑定的默认项目 ID
+- `token`：可选；存在时 CLI 执行命令前会先刷新本地登录态
 
-创建后按实际值替换占位符，再执行：
+初始化 profile：
 
 ```bash
 yunxiao_cli login token <token> --account <assignee>
@@ -102,6 +108,8 @@ yunxiao_cli profile use <profile>
 ```bash
 yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
+
+如果项目里已经有 `.yunxiao.json`，后续常用命令可直接省略 `--profile`；创建和更新工单时也会优先使用其中的 `assignee`。
 
 ## 项目结构
 
@@ -137,6 +145,12 @@ yunxiao_cli profile use pm-dev
 
 ```bash
 yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id_1>,<project_id_2>
+```
+
+为当前 repo 绑定默认上下文：
+
+```bash
+yunxiao_cli context init --profile pm-dev --assignee pm-a --project <project_id>
 ```
 
 查看元数据：
@@ -176,7 +190,7 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 创建工作项常用参数：
 
 - `--category`：工作项分类，如 `Req`、`Task`、`Bug`
-- `--project`：项目 ID 过滤，多个用逗号分隔；不传时使用当前 profile 的全部项目
+- `--project`：项目 ID 过滤，多个用逗号分隔；不传时优先使用 `.yunxiao.json.project`，否则使用当前 profile 的全部项目
 - `--sort`：聚合排序方式，当前支持 `time`
 - `--type`：工作项类型 ID 或名称；不传时按分类取默认类型
 - `--subject`：工作项标题
@@ -188,9 +202,9 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 - `--field`：字段赋值，可重复传，如 `--field "严重程度=3-一般"`
 - `--field-json`：一次传完整字段集，推荐，如 `--field-json '{"严重程度":"3-一般"}'`
 
-已执行 `yunxiao_cli profile use <name>` 后，命令可省略 `--profile`。
+已执行 `yunxiao_cli profile use <name>` 或当前目录存在 `.yunxiao.json` 后，命令可省略 `--profile`。
 
-`workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一排序。
+`workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一排序；如果当前 repo 存在 `.yunxiao.json.project`，默认只查询该项目。
 
 查询返回约定：
 

@@ -130,15 +130,20 @@ class WorkitemService:
         self,
         *,
         profile_name: str | None,
+        assignee: str | None = None,
         category: str | None = None,
         project: str | None = None,
         sort: str | None = None,
         raw: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
-        account = self.store.get_account(profile.account)
-        user_id = str(account.user.get("id") or account.user.get("userId") or "")
-        user_name = str(account.user.get("name") or "")
+        if assignee:
+            user_id = self.meta_service.resolve_member(profile, assignee)
+            user_name = assignee
+        else:
+            account = self.store.get_account(profile.account)
+            user_id = str(account.user.get("id") or account.user.get("userId") or "")
+            user_name = str(account.user.get("name") or "")
         categories = self._resolve_categories(category)
         projects = self._resolve_projects(profile, project)
         sort_value = self._resolve_sort(sort)

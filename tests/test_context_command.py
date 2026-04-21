@@ -22,6 +22,42 @@ class FakeResponse:
 
 
 class ProfileCommandTest(unittest.TestCase):
+    def test_context_init_writes_minimal_project_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "apollo-repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            current_dir = Path.cwd()
+            try:
+                os.chdir(project_root)
+                result = run_cli_json(
+                    [
+                        "context",
+                        "init",
+                        "--profile",
+                        "apollo",
+                        "--assignee",
+                        "wyx",
+                        "--project",
+                        "123456",
+                    ]
+                )
+            finally:
+                os.chdir(current_dir)
+
+            config_path = project_root / ".yunxiao.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(result["success"])
+        self.assertEqual(str(config_path), result["data"]["path"])
+        self.assertEqual(
+            {
+                "profile": "apollo",
+                "assignee": "wyx",
+                "project": "123456",
+            },
+            config,
+        )
+
     @patch("requests.request")
     def test_profile_add_creates_meta_cache(self, request_mock):
         def request_side_effect(method, url, **kwargs):

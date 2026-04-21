@@ -15,25 +15,41 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 
 ## 项目级配置
 
-每个使用本 skill 的项目，在根目录必须存在配置文件 `.yunxiao.json`
+优先使用项目根目录 `.yunxiao.json` 作为 repo 级默认上下文。
+
+如果配置不存在：
+
+1. 先从当前对话收集 `profile`、`assignee`、`project`
+2. 信息足够时直接执行 `yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project>`
+3. 只缺字段时一次性追问补齐，不要拆成多轮
 
 ## 字段说明
 
 ```json
 {
-  "token": "<token>",
   "profile": "<profile>",
-  "project": ["<project_id>"],
-  "assignee": "<assignee>"
+  "assignee": "<assignee>",
+  "project": "<project_id>"
+}
+```
+
+扩展写法：
+
+```json
+{
+  "profile": "<profile>",
+  "assignee": "<assignee>",
+  "project": "<project_id>",
+  "token": "<token>"
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `token` | 云效登录 token，用于 `yunxiao_cli login token <token>` |
 | `profile` | CLI profile 名，作为所有命令的 `--profile` 参数 |
-| `project` | 支持单项目 ID、逗号分隔的多个项目 ID，或项目 ID 数组 |
-| `assignee` | 当前用户身份标识，用于过滤"我的工作项"、"指派负责人"等场景 |
+| `assignee` | 当前项目默认负责人；创建/更新/`mine` 等场景优先使用 |
+| `project` | 当前 repo 绑定的默认项目 ID |
+| `token` | 可选；存在时，命令执行前先用它刷新本地登录态 |
 
 ## 初始化流程
 
@@ -49,6 +65,12 @@ yunxiao_cli profile use <profile>
 
 ```bash
 yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
+```
+
+然后为当前 repo 写入项目配置：
+
+```bash
+yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project_id>
 ```
 
 ## 使用流程
@@ -153,9 +175,13 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 
 ## 约束
 
-- Agent 读取项目根目录 `.yunxiao.json` 获取 `profile`，显式传 `--profile`
+- Agent 先读项目根目录 `.yunxiao.json`
+- 有 `token`：先执行登录刷新，再继续后续命令
+- 无 `token`：直接复用本机已保存的 profile 与 account
+- 默认把 `.yunxiao.json.project` 作为当前 repo 的项目上下文
+- 默认把 `.yunxiao.json.assignee` 作为当前 repo 的负责人上下文
 - 状态、类型、字段、成员解析统一走项目缓存
-- `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一按 `--sort` 排序
+- `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一按 `--sort` 排序；但 repo 已绑定 `project` 时默认只查该项目
 
 ## 工作项内容模板与规范
 

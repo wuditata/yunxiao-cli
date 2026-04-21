@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from .app.attachment_service import AttachmentService
 from .app.auth_service import AuthService
 from .app.comment_service import CommentService
+from .app.context_service import ContextService
 from .app.errors import CliError
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
@@ -20,6 +21,7 @@ from .infra.config import CliConfig
 
 def _services() -> tuple[
     Store,
+    ContextService,
     ProfileService,
     MetaService,
     ProjectService,
@@ -29,8 +31,9 @@ def _services() -> tuple[
     RelationService,
 ]:
     store = Store(root=CliConfig.data_root())
+    context_service = ContextService(store=store)
     meta_service = MetaService(store=store)
-    profile_service = ProfileService(store=store, meta_service=meta_service)
+    profile_service = ProfileService(store=store, meta_service=meta_service, context_service=context_service)
     project_service = ProjectService(store=store, profile_service=profile_service)
     attachment_service = AttachmentService(store=store, profile_service=profile_service)
     workitem_service = WorkitemService(
@@ -43,6 +46,7 @@ def _services() -> tuple[
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
     return (
         store,
+        context_service,
         profile_service,
         meta_service,
         project_service,
@@ -92,6 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         (
             store,
+            context_service,
             profile_service,
             meta_service,
             project_service,
@@ -114,6 +119,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 warnings=warnings,
             )
             return 0
+        if args.command == "context" and args.context_command == "init":
+            config, path = context_service.init_project_context(
+                profile=args.profile,
+                assignee=args.assignee,
+                project=args.project,
+                token=args.token,
+            )
+            _print_success(data={"path": str(path), "context": config.to_dict()})
+            return 0
         if args.command == "profile" and args.profile_command == "add":
             profile, meta = profile_service.add_profile(args.name, args.account, args.org, args.project)
             _print_success(data={"profile": profile.to_dict(), "meta": meta}, profile=profile.to_dict())
@@ -129,6 +143,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             profile = profile_service.use_profile(args.name)
             _print_success(data={"profile": profile.to_dict()}, profile=profile.to_dict())
             return 0
+        project_context = context_service.resolve(
+            profile=getattr(args, "profile", None),
+            assignee=getattr(args, "assigned_to", None),
+            project=getattr(args, "project", None),
+        )
+        if (
+            project_context.token
+            and project_context.profile
+            and (not getattr(args, "profile", None) or getattr(args, "profile", None) == project_context.profile)
+        ):
+            context_service.refresh_login_if_needed(profile=project_context.profile, token=project_context.token)
         if args.command == "meta" and args.meta_command == "reload":
             profile = profile_service.get_profile(args.profile)
             meta = meta_service.refresh(profile)
@@ -176,7 +201,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 desc=args.desc,
                 desc_file=args.desc_file,
                 parent=args.parent,
-                assigned_to=args.assigned_to,
+                assigned_to=project_context.assignee,
                 attachments=args.attachment,
                 field_pairs=args.field,
                 field_json_pairs=args.field_json,
@@ -196,8 +221,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "workitem" and args.workitem_command == "mine":
             data, profile = workitem_service.mine(
                 profile_name=args.profile,
+                assignee=project_context.assignee,
                 category=args.category,
-                project=args.project,
+                project=project_context.project,
                 sort=args.sort,
                 raw=args.raw,
             )
@@ -208,7 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_name=args.profile,
                 category=args.category,
                 status=args.status,
-                project=args.project,
+                project=project_context.project,
                 sort=args.sort,
                 raw=args.raw,
             )
@@ -221,7 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 subject=args.subject,
                 desc=args.desc,
                 desc_file=args.desc_file,
-                assigned_to=args.assigned_to,
+                assigned_to=project_context.assignee,
                 status=args.status,
                 field_pairs=args.field,
                 field_json_pairs=args.field_json,

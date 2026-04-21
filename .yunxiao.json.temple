@@ -1,6 +1,5 @@
 {
   "profile": "<your_profile_name>",
-  "token": "<your_yunxiao_token>",
-  "project": ["<your_project_id>"],
-  "assignee": "<your_assignee>"
+  "assignee": "<your_assignee>",
+  "project": "<your_project_id>"
 }

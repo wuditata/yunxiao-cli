@@ -31,6 +31,18 @@ def build_parser() -> argparse.ArgumentParser:
     profile_show_parser = profile_subparsers.add_parser("show", help="查看 profile", description="查看指定或默认 profile。")
     profile_show_parser.add_argument("--profile", help="profile 名称，缺省时使用默认 profile")
 
+    context_parser = subparsers.add_parser("context", help="管理项目级云效上下文")
+    context_subparsers = context_parser.add_subparsers(dest="context_command")
+    context_init_parser = context_subparsers.add_parser(
+        "init",
+        help="初始化项目配置",
+        description="在当前目录写入 .yunxiao.json。",
+    )
+    context_init_parser.add_argument("--profile", required=True, help="profile 名称")
+    context_init_parser.add_argument("--assignee", required=True, help="项目默认负责人")
+    context_init_parser.add_argument("--project", required=True, help="项目 ID")
+    context_init_parser.add_argument("--token", help="可选 token；存在时执行命令前会刷新登录态")
+
     meta_parser = subparsers.add_parser("meta", help="查看项目元数据")
     meta_subparsers = meta_parser.add_subparsers(dest="meta_command")
     meta_reload_parser = meta_subparsers.add_parser("reload", help="刷新元数据缓存", description="刷新类型、状态、字段、成员等缓存。")

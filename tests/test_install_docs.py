@@ -32,13 +32,18 @@ class InstallDocsTest(unittest.TestCase):
         content = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("yunxiao_cli login token", content)
         self.assertIn("yunxiao_cli profile add", content)
+        self.assertIn("yunxiao_cli context init", content)
         self.assertIn("yunxiao_cli workitem attachment upload", content)
         self.assertIn("--attachment", content)
 
     def test_template_file_exists_and_readme_mentions_it(self):
         template = ROOT / ".yunxiao.json.temple"
         self.assertTrue(template.exists())
-        self.assertIn('"token"', template.read_text(encoding="utf-8"))
+        template_content = template.read_text(encoding="utf-8")
+        self.assertIn('"profile"', template_content)
+        self.assertIn('"assignee"', template_content)
+        self.assertIn('"project"', template_content)
+        self.assertNotIn('"token"', template_content)
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(".yunxiao.json.temple", readme)
 

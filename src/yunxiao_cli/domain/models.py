@@ -130,3 +130,39 @@ class MetaCache:
             if item.get("id") == workitem_type_id:
                 return item
         return None
+
+
+@dataclass(slots=True)
+class ProjectContextConfig:
+    profile: str
+    assignee: str
+    project: str
+    token: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        data = {
+            "profile": self.profile,
+            "assignee": self.assignee,
+            "project": self.project,
+        }
+        if self.token:
+            data["token"] = self.token
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ProjectContextConfig":
+        profile = str(data.get("profile") or "").strip()
+        assignee = str(data.get("assignee") or "").strip()
+        project = str(data.get("project") or "").strip()
+        if not profile:
+            raise ValueError("profile is required")
+        if not assignee:
+            raise ValueError("assignee is required")
+        if not project:
+            raise ValueError("project is required")
+        return cls(
+            profile=profile,
+            assignee=assignee,
+            project=project,
+            token=str(data.get("token") or "").strip(),
+        )

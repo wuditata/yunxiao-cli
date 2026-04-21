@@ -113,7 +113,148 @@ def seed_multi_project_store(root: Path) -> Store:
     return store
 
 
+def seed_project_config_store(root: Path) -> Store:
+    store = Store(root=root)
+    store.save_account(
+        AccountConfig(
+            name="pm-a",
+            token="token-a",
+            user={"id": "user-1", "name": "Alice"},
+            organizations=[{"id": "123", "name": "FOXHIS"}],
+        )
+    )
+    store.save_profile(
+        ProfileConfig(
+            name="apollo",
+            account="pm-a",
+            org="123",
+            project="456",
+            projects=["456", "457"],
+        )
+    )
+    store.set_default_profile("apollo")
+    for project_id, project_name in (("456", "AI 项目"), ("457", "Apollo 项目")):
+        store.save_meta_cache(
+            MetaCache(
+                account="pm-a",
+                org="123",
+                project=project_id,
+                project_info={"id": project_id, "name": project_name},
+                workitem_types=[
+                    {"id": "task-type", "categoryId": "Task", "defaultType": True, "name": "任务"},
+                ],
+                statuses={"task-type": [{"id": "task-dev", "name": "功能开发", "displayName": "功能开发"}]},
+                fields={"task-type": []},
+                members=[
+                    {"id": "member-1", "userId": "user-1", "name": "Alice"},
+                    {"id": "member-2", "userId": "user-2", "name": "wyx"},
+                ],
+                updated_at="2099-01-01T00:00:00+00:00",
+                ttl_seconds=3600,
+                invalidated=False,
+            )
+        )
+    return store
+
+
 class WorkitemQueryCommandsTest(unittest.TestCase):
+    @patch("requests.request")
+    def test_workitem_create_uses_project_config_profile_project_and_assignee(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems"):
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001", "subject": kwargs["json"]["subject"]})
+            raise AssertionError(url)
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_project_config_store(Path(temp_dir))
+            project_root = Path(temp_dir) / "apollo-repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            (project_root / ".yunxiao.json").write_text(
+                json.dumps(
+                    {
+                        "profile": "apollo",
+                        "assignee": "wyx",
+                        "project": "457",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            current_dir = Path.cwd()
+            try:
+                os.chdir(project_root)
+                with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                    result = run_cli_json(
+                        [
+                            "workitem",
+                            "create",
+                            "--category",
+                            "Task",
+                            "--subject",
+                            "来自项目配置",
+                        ]
+                    )
+            finally:
+                os.chdir(current_dir)
+
+        self.assertTrue(result["success"])
+        self.assertEqual("457", captured["payload"]["spaceId"])
+        self.assertEqual("user-2", captured["payload"]["assignedTo"])
+        self.assertEqual("apollo", result["profile"]["name"])
+        self.assertEqual("457", result["profile"]["project"])
+
+    @patch("requests.request")
+    def test_workitem_mine_prefers_project_config_assignee(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if not url.endswith("/workitems:search"):
+                raise AssertionError(url)
+            payload = kwargs["json"]
+            if payload["spaceId"] != "457" or payload["page"] != 1:
+                return FakeResponse([])
+            data = {
+                "Req": [],
+                "Task": [
+                    {"id": "task-1", "assignedTo": {"userId": "user-2"}, "spaceId": "457"},
+                    {"id": "task-2", "assignedTo": {"userId": "user-1"}, "spaceId": "457"},
+                ],
+                "Bug": [],
+            }
+            return FakeResponse(data[payload["category"]])
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_project_config_store(Path(temp_dir))
+            project_root = Path(temp_dir) / "apollo-repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            (project_root / ".yunxiao.json").write_text(
+                json.dumps(
+                    {
+                        "profile": "apollo",
+                        "assignee": "wyx",
+                        "project": "457",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            current_dir = Path.cwd()
+            try:
+                os.chdir(project_root)
+                with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                    result = run_cli_json(["workitem", "mine"])
+            finally:
+                os.chdir(current_dir)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(["task-1"], [item["id"] for item in result["data"]["items"]])
+        self.assertEqual(["457"], result["data"]["filters"]["projects"])
+
     @patch("requests.request")
     def test_workitem_create_uses_default_type_from_category(self, request_mock):
         captured = {}
