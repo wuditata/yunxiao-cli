@@ -30,9 +30,9 @@ class LoginCommandTest(unittest.TestCase):
                 return FakeResponse({"id": "user-1", "name": "Alice"})
             if url.endswith("/oapi/v1/platform/organizations"):
                 return FakeResponse([{"id": "org-1", "name": "FOXHIS"}, {"id": "org-2", "name": "LAB"}])
-            if url.endswith("/oapi/v1/projex/organizations/org-1/projects"):
+            if method == "POST" and url.endswith("/oapi/v1/projex/organizations/org-1/projects:search"):
                 return FakeResponse([{"id": "proj-1", "name": "AI 项目"}])
-            if url.endswith("/oapi/v1/projex/organizations/org-2/projects"):
+            if method == "POST" and url.endswith("/oapi/v1/projex/organizations/org-2/projects:search"):
                 return FakeResponse([{"id": "proj-2", "name": "测试项目"}])
             raise AssertionError(url)
 
@@ -60,8 +60,8 @@ class LoginCommandTest(unittest.TestCase):
             [
                 "https://openapi-rdc.aliyuncs.com/oapi/v1/platform/user",
                 "https://openapi-rdc.aliyuncs.com/oapi/v1/platform/organizations",
-                "https://openapi-rdc.aliyuncs.com/oapi/v1/projex/organizations/org-1/projects",
-                "https://openapi-rdc.aliyuncs.com/oapi/v1/projex/organizations/org-2/projects",
+                "https://openapi-rdc.aliyuncs.com/oapi/v1/projex/organizations/org-1/projects:search",
+                "https://openapi-rdc.aliyuncs.com/oapi/v1/projex/organizations/org-2/projects:search",
             ],
             requested_urls,
         )
@@ -73,9 +73,9 @@ class LoginCommandTest(unittest.TestCase):
                 return FakeResponse({"id": "user-1", "name": "Alice"})
             if url.endswith("/oapi/v1/platform/organizations"):
                 return FakeResponse([{"id": "org-1", "name": "FOXHIS"}, {"id": "org-2", "name": "LAB"}])
-            if url.endswith("/oapi/v1/projex/organizations/org-1/projects"):
+            if method == "POST" and url.endswith("/oapi/v1/projex/organizations/org-1/projects:search"):
                 return FakeResponse([{"id": "proj-1", "name": "AI 项目"}])
-            if url.endswith("/oapi/v1/projex/organizations/org-2/projects"):
+            if method == "POST" and url.endswith("/oapi/v1/projex/organizations/org-2/projects:search"):
                 return FakeResponse({"errorCode": "NotFound", "errorMessage": "Not Found"}, status_code=404)
             raise AssertionError(url)
 

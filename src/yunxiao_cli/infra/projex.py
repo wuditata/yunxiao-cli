@@ -30,7 +30,7 @@ class ProjexAPI(BaseAPI):
         return self.get(f"/oapi/v1/projex/organizations/{org_id}/projects/{project_id}")
 
     def list_projects(self, org_id: str) -> list[dict]:
-        projects = self.get(f"/oapi/v1/projex/organizations/{org_id}/projects")
+        projects = self.post(f"/oapi/v1/projex/organizations/{org_id}/projects:search", data={})
         if isinstance(projects, list):
             return projects
         return projects.get("result") or projects.get("items") or []

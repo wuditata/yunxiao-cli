@@ -9,6 +9,8 @@ description = "Yunxiao CLI for workitem collaboration"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "browser-cookie3>=0.20.1",
+  "playwright>=1.52.0",
   "requests>=2.31.0",
 ]
 
