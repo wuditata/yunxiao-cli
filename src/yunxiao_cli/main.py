@@ -10,6 +10,7 @@ from .app.context_service import ContextService
 from .app.codeup_service import CodeupService
 from .app.errors import CliError
 from .app.knowledge_service import KnowledgeService
+from .app.thoughts_service import ThoughtsKnowledgeService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
 from .app.project_service import ProjectService
@@ -382,6 +383,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 project=getattr(args, "project", None) or project_context.project,
             )
             _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "download":
+            thoughts_knowledge_service = ThoughtsKnowledgeService()
+            data = thoughts_knowledge_service.download(
+                url=args.url,
+                output_dir=args.output,
+                cookie=args.cookie,
+                cookie_file=getattr(args, "cookie_file", None),
+                browser=args.browser,
+                concurrency=args.concurrency,
+            )
+            _print_success(data=data)
             return 0
         # ── Codeup 路由 ──────────────────────────────────────
         if args.command == "codeup" and getattr(args, "codeup_command", None) == "repo":
