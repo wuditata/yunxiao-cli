@@ -200,6 +200,17 @@ class ProjexAPI(BaseAPI):
         status: str | None = None,
         subject: str | None = None,
         parent_id: str | None = None,
+        assigned_to: str | None = None,
+        sprint: str | None = None,
+        tag: str | None = None,
+        priority: str | None = None,
+        subject_description: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        updated_after: str | None = None,
+        updated_before: str | None = None,
+        order_by: str = "gmtCreate",
+        sort: str = "desc",
         page: int = 1,
         per_page: int = 20,
     ) -> list[dict]:
@@ -212,11 +223,29 @@ class ProjexAPI(BaseAPI):
             filters.append(self._search_condition("subject", subject, "string", "input"))
         if parent_id:
             filters.append(self._search_condition("parentId", parent_id, "string", "input"))
+        if assigned_to:
+            filters.append(self._search_condition("assignedTo", assigned_to, "user", "list"))
+        if sprint:
+            filters.append(self._search_condition("sprint", sprint, "sprint", "list"))
+        if tag:
+            filters.append(self._search_multi_condition("tag", tag, "tag", "multiList"))
+        if priority:
+            filters.append(self._search_condition("priority", priority, "option", "list"))
+        if subject_description:
+            filters.append(self._search_condition("subject-description", subject_description, "string", "input"))
+        if created_after:
+            to_value = f"{created_before} 23:59:59" if created_before else None
+            filters.append(self._search_range_condition("gmtCreate", f"{created_after} 00:00:00", to_value, "dateTime"))
+        if updated_after:
+            to_value = f"{updated_before} 23:59:59" if updated_before else None
+            filters.append(self._search_range_condition("gmtModified", f"{updated_after} 00:00:00", to_value, "dateTime"))
         result = self.post(
             f"/oapi/v1/projex/organizations/{org_id}/workitems:search",
             data={
                 "category": category,
                 "spaceId": project_id,
+                "orderBy": order_by,
+                "sort": sort,
                 "page": page,
                 "perPage": per_page,
                 "conditions": json.dumps({"conditionGroups": [filters] if filters else []}, ensure_ascii=False),
@@ -225,6 +254,52 @@ class ProjexAPI(BaseAPI):
         if isinstance(result, list):
             return result
         return result.get("result") or result.get("items") or []
+
+    def list_sprints(
+        self,
+        org_id: str,
+        project_id: str,
+        *,
+        status: str | None = None,
+        page: int = 1,
+        per_page: int = 100,
+    ) -> list[dict]:
+        params: dict[str, Any] = {"page": page, "perPage": per_page}
+        if status:
+            params["status"] = status
+        items = self.get(
+            f"/oapi/v1/projex/organizations/{org_id}/projects/{project_id}/sprints",
+            params=params,
+        )
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
+
+    def get_sprint(self, org_id: str, project_id: str, sprint_id: str) -> dict:
+        return self.get(f"/oapi/v1/projex/organizations/{org_id}/projects/{project_id}/sprints/{sprint_id}")
+
+    def list_versions(
+        self,
+        org_id: str,
+        project_id: str,
+        *,
+        status: str | None = None,
+        name: str | None = None,
+        page: int = 1,
+        per_page: int = 100,
+    ) -> list[dict]:
+        params: dict[str, Any] = {"page": page, "perPage": per_page}
+        if status:
+            params["status"] = status
+        if name:
+            params["name"] = name
+        items = self.get(
+            f"/oapi/v1/projex/organizations/{org_id}/projects/{project_id}/versions",
+            params=params,
+        )
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
 
     def list_comments(self, org_id: str, workitem_id: str, page: int = 1, per_page: int = 20) -> list[dict]:
         items = self.get(
@@ -262,4 +337,27 @@ class ProjexAPI(BaseAPI):
             "toValue": None,
             "className": class_name,
             "format": format_type,
+        }
+
+    @staticmethod
+    def _search_multi_condition(field_identifier: str, value: str, class_name: str, format_type: str) -> dict[str, Any]:
+        values = [v.strip() for v in value.split(",")]
+        return {
+            "fieldIdentifier": field_identifier,
+            "operator": "CONTAINS",
+            "value": values,
+            "toValue": None,
+            "className": class_name,
+            "format": format_type,
+        }
+
+    @staticmethod
+    def _search_range_condition(field_identifier: str, from_value: str, to_value: str | None, class_name: str) -> dict[str, Any]:
+        return {
+            "fieldIdentifier": field_identifier,
+            "operator": "BETWEEN",
+            "value": [from_value],
+            "toValue": to_value,
+            "className": class_name,
+            "format": "input",
         }

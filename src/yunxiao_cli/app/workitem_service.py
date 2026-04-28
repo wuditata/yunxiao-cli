@@ -187,6 +187,15 @@ class WorkitemService:
         profile_name: str | None,
         category: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
+        tag: str | None = None,
+        priority: str | None = None,
+        assigned_to: str | None = None,
+        sprint: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        updated_after: str | None = None,
+        updated_before: str | None = None,
         project: str | None = None,
         sort: str | None = None,
         raw: bool = False,
@@ -196,6 +205,7 @@ class WorkitemService:
         categories = self._resolve_categories(category)
         projects = self._resolve_projects(profile, project)
         sort_value = self._resolve_sort(sort)
+        assignee_id = self.meta_service.resolve_member(profile, assigned_to) if assigned_to else None
 
         items: list[dict[str, Any]] = []
         for project_id in projects:
@@ -216,6 +226,15 @@ class WorkitemService:
                             project_id,
                             category_name,
                             status=resolved_status,
+                            keyword=keyword,
+                            tag=tag,
+                            priority=priority,
+                            assigned_to=assignee_id,
+                            sprint=sprint,
+                            created_after=created_after,
+                            created_before=created_before,
+                            updated_after=updated_after,
+                            updated_before=updated_before,
                         ),
                         project_id=project_id,
                         category=category_name,
@@ -227,6 +246,15 @@ class WorkitemService:
         filters = {
             "category": category or "all",
             "status": status,
+            "keyword": keyword,
+            "tag": tag,
+            "priority": priority,
+            "assignedTo": assigned_to,
+            "sprint": sprint,
+            "createdAfter": created_after,
+            "createdBefore": created_before,
+            "updatedAfter": updated_after,
+            "updatedBefore": updated_before,
             "projects": projects,
             "sort": sort_value,
         }
@@ -583,6 +611,15 @@ class WorkitemService:
         category: str,
         *,
         status: str | None = None,
+        keyword: str | None = None,
+        tag: str | None = None,
+        priority: str | None = None,
+        assigned_to: str | None = None,
+        sprint: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        updated_after: str | None = None,
+        updated_before: str | None = None,
     ) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         per_page = 100
@@ -592,6 +629,15 @@ class WorkitemService:
                 project_id=project_id,
                 category=category,
                 status=status,
+                subject_description=keyword,
+                tag=tag,
+                priority=priority,
+                assigned_to=assigned_to,
+                sprint=sprint,
+                created_after=created_after,
+                created_before=created_before,
+                updated_after=updated_after,
+                updated_before=updated_before,
                 page=page,
                 per_page=per_page,
             )

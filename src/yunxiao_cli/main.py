@@ -7,11 +7,14 @@ from .app.attachment_service import AttachmentService
 from .app.auth_service import AuthService
 from .app.comment_service import CommentService
 from .app.context_service import ContextService
+from .app.codeup_service import CodeupService
 from .app.errors import CliError
+from .app.knowledge_service import KnowledgeService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
 from .app.project_service import ProjectService
 from .app.relation_service import RelationService
+from .app.sprint_service import SprintService
 from .app.workitem_service import WorkitemService
 from .cli import build_parser
 from .domain.store import Store
@@ -29,6 +32,9 @@ def _services() -> tuple[
     AttachmentService,
     CommentService,
     RelationService,
+    SprintService,
+    KnowledgeService,
+    CodeupService,
 ]:
     store = Store(root=CliConfig.data_root())
     context_service = ContextService(store=store)
@@ -44,6 +50,9 @@ def _services() -> tuple[
     )
     comment_service = CommentService(store=store, profile_service=profile_service)
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
+    sprint_service = SprintService(store=store, profile_service=profile_service)
+    knowledge_service = KnowledgeService(store=store, profile_service=profile_service, meta_service=meta_service)
+    codeup_service = CodeupService(store=store, profile_service=profile_service)
     return (
         store,
         context_service,
@@ -54,6 +63,9 @@ def _services() -> tuple[
         attachment_service,
         comment_service,
         relation_service,
+        sprint_service,
+        knowledge_service,
+        codeup_service,
     )
 
 
@@ -104,6 +116,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             attachment_service,
             comment_service,
             relation_service,
+            sprint_service,
+            knowledge_service,
+            codeup_service,
         ) = _services()
         if args.command == "login" and args.login_command == "token":
             account, organizations, projects, warnings = AuthService(store=store).login_token(
@@ -234,6 +249,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_name=args.profile,
                 category=args.category,
                 status=args.status,
+                keyword=args.keyword,
+                tag=args.tag,
+                priority=args.priority,
+                assigned_to=getattr(args, "assigned_to", None) or project_context.assignee if getattr(args, "assigned_to", None) else None,
+                sprint=args.sprint,
+                created_after=args.created_after,
+                created_before=args.created_before,
+                updated_after=args.updated_after,
+                updated_before=args.updated_before,
                 project=project_context.project,
                 sort=args.sort,
                 raw=args.raw,
@@ -319,6 +343,147 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
+        if args.command == "sprint" and args.sprint_command == "list":
+            data, profile = sprint_service.list_sprints(
+                profile_name=args.profile,
+                project=getattr(args, "project", None) or project_context.project,
+                status=args.status,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "sprint" and args.sprint_command == "get":
+            data, profile = sprint_service.get_sprint(
+                profile_name=args.profile,
+                project=args.project,
+                sprint_id=args.sprint_id,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "version" and args.version_command == "list":
+            data, profile = sprint_service.list_versions(
+                profile_name=args.profile,
+                project=getattr(args, "project", None) or project_context.project,
+                status=args.status,
+                name=getattr(args, "name", None),
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and args.knowledge_command == "context":
+            data, profile = knowledge_service.context(
+                profile_name=args.profile,
+                workitem_id=args.workitem_id,
+                depth=args.depth,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "project-summary":
+            data, profile = knowledge_service.project_summary(
+                profile_name=args.profile,
+                project=getattr(args, "project", None) or project_context.project,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        # ── Codeup 路由 ──────────────────────────────────────
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "repo":
+            if getattr(args, "codeup_repo_command", None) == "list":
+                data, profile = codeup_service.list_repos(
+                    profile_name=args.profile,
+                    search=getattr(args, "search", None),
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_repo_command", None) == "get":
+                data, profile = codeup_service.get_repo(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "branch":
+            if getattr(args, "codeup_branch_command", None) == "list":
+                data, profile = codeup_service.list_branches(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    search=getattr(args, "search", None),
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "file":
+            if getattr(args, "codeup_file_command", None) == "list":
+                data, profile = codeup_service.list_files(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    path=getattr(args, "path", None),
+                    ref=getattr(args, "ref", None),
+                    recursive=getattr(args, "recursive", False),
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_file_command", None) == "get":
+                data, profile = codeup_service.get_file(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    file_path=args.file_path,
+                    ref=args.ref,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "commit":
+            if getattr(args, "codeup_commit_command", None) == "list":
+                data, profile = codeup_service.list_commits(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    ref=args.ref,
+                    path=getattr(args, "path", None),
+                    search=getattr(args, "search", None),
+                    since=getattr(args, "since", None),
+                    until=getattr(args, "until", None),
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_commit_command", None) == "get":
+                data, profile = codeup_service.get_commit(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    sha=args.sha,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "compare":
+            data, profile = codeup_service.compare(
+                profile_name=args.profile,
+                repo_id=args.repo_id,
+                from_ref=args.from_ref,
+                to_ref=args.to_ref,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "codeup" and getattr(args, "codeup_command", None) == "mr":
+            if getattr(args, "codeup_mr_command", None) == "list":
+                data, profile = codeup_service.list_mrs(
+                    profile_name=args.profile,
+                    repo_id=getattr(args, "repo", None),
+                    state=getattr(args, "state", None),
+                    search=getattr(args, "search", None),
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "get":
+                data, profile = codeup_service.get_mr(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "comments":
+                data, profile = codeup_service.list_mr_comments(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
         parser.print_help()
         return 0
     except CliError as error:

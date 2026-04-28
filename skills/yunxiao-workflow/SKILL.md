@@ -1,6 +1,12 @@
 ---
 name: yunxiao-workflow
-description: Use when an agent needs to operate Alibaba Yunxiao workitems through the standalone yunxiao_cli project.
+description: >
+  Use when an agent needs to operate Alibaba Yunxiao workitems, code repositories, or project management.
+  Auto-trigger when user mentions workitem serial numbers like #ABC-1234, #PROJ-56, or any #<prefix>-<number> pattern.
+triggers:
+  - pattern: "#[A-Za-z]+-\\d+"
+    description: "Yunxiao workitem serial number, e.g. #REQ-42, #BUG-1234, #TASK-7"
+  - keywords: ["云效", "yunxiao", "工作项", "workitem", "迭代", "sprint", "codeup", "合并请求", "MR"]
 ---
 
 # Yunxiao Workflow
@@ -12,6 +18,24 @@ description: Use when an agent needs to operate Alibaba Yunxiao workitems throug
 - 主入口是 `yunxiao_cli`
 - 输出统一为 JSON：`success`、`profile`、`data`、`warnings`
 - `workitem search` / `workitem mine` 默认返回摘要列表；需要详情时调用 `workitem get`
+
+## 识别规则
+
+当用户消息中出现以下模式时，应使用本 skill 处理：
+
+| 模式 | 示例 | 含义 |
+|------|------|------|
+| `#前缀-数字` | `#REQ-42`、`#BUG-1234`、`#TASK-7` | 云效工作项流水号 |
+| `看一下 #XXX-数字` | "看一下 #FE-128 的进展" | 查询工作项详情 |
+| `处理 #XXX-数字` | "处理一下 #BUG-99" | 流转工作项状态 |
+| 提到"云效/yunxiao/工作项/迭代/sprint/codeup/MR" | "当前迭代有什么任务" | 云效相关操作 |
+
+**流水号解析规则：**
+
+- 格式：`#前缀-数字`，如 `#REQ-42` → serialNumber 为 `REQ-42`
+- 用 `workitem get` 时直接传流水号：`yunxiao_cli workitem get REQ-42`
+- 用 `knowledge context` 聚合上下文：`yunxiao_cli knowledge context REQ-42`
+- 多个流水号出现时（如"看一下 #FE-1 和 #FE-2"），逐个处理
 
 ## 项目级配置
 
@@ -111,6 +135,8 @@ yunxiao_cli workitem mine --category all --project <project_id_1>,<project_id_2>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
 yunxiao_cli workitem search --category Task --status "处理中" --profile <profile> --raw
+yunxiao_cli workitem search --keyword "支付超时" --profile <profile>
+yunxiao_cli workitem search --tag "性能" --priority "P1" --assigned-to "张三" --profile <profile>
 yunxiao_cli workitem update 1001 --desc-file ./req.md --profile <profile>
 yunxiao_cli workitem transition 1001 --to "已完成" --profile <profile>
 # 目标状态有必填字段时，transition 支持直接传字段
@@ -182,6 +208,122 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 - 默认把 `.yunxiao.json.assignee` 作为当前 repo 的负责人上下文
 - 状态、类型、字段、成员解析统一走项目缓存
 - `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一按 `--sort` 排序；但 repo 已绑定 `project` 时默认只查该项目
+
+## 搜索增强参数
+
+`workitem search` 除了 `--category` 和 `--status`，还支持以下过滤条件：
+
+| 参数 | 说明 |
+|------|------|
+| `--keyword` | 全文搜索标题+描述 |
+| `--tag` | 标签过滤，多个用逗号分隔 |
+| `--priority` | 优先级，如 P1、P2 |
+| `--assigned-to` | 负责人 userId 或名称 |
+| `--sprint` | 迭代 ID |
+| `--created-after` / `--created-before` | 创建时间范围，格式 `YYYY-MM-DD` |
+| `--updated-after` / `--updated-before` | 更新时间范围，格式 `YYYY-MM-DD` |
+
+```bash
+yunxiao_cli workitem search --keyword "支付超时"
+yunxiao_cli workitem search --tag "性能,P1" --assigned-to "张三"
+yunxiao_cli workitem search --created-after "2026-01-01" --created-before "2026-03-31"
+yunxiao_cli workitem search --category Task --keyword "登录" --priority "P1"
+```
+
+## 迭代与版本
+
+```bash
+# 迭代
+yunxiao_cli sprint list                                  # 列出迭代
+yunxiao_cli sprint list --status DOING                   # 只看进行中的
+yunxiao_cli sprint get <sprint_id> --project <project_id> # 迭代详情
+
+# 版本
+yunxiao_cli version list                                 # 列出版本
+yunxiao_cli version list --status TODO                   # 只看待开始的
+yunxiao_cli version list --name "v2.0"                   # 按名称搜索
+```
+
+| 场景 | 操作 |
+|------|------|
+| "当前迭代有哪些任务" | 先 `sprint list --status DOING` 拿 sprint ID，再 `workitem search --sprint <id>` |
+| "v2.0 包含哪些需求" | `version list --name v2.0` |
+
+## 知识聚合
+
+### `knowledge context` — 单个工作项的完整上下文
+
+```bash
+yunxiao_cli knowledge context <workitem_id>
+yunxiao_cli knowledge context <workitem_id> --depth 3
+```
+
+返回结构：
+
+| 字段 | 含义 |
+|------|------|
+| `workitem` | 工作项完整详情（标题、描述、状态、负责人等） |
+| `comments` | 所有评论和讨论 |
+| `attachments` | 附件列表 |
+| `parentChain` | 从直接父项到根的链，理解需求层级 |
+| `childrenTree` | 递归子项树，按 `--depth` 控制深度 |
+
+### `knowledge project-summary` — 项目全局概览
+
+```bash
+yunxiao_cli knowledge project-summary
+yunxiao_cli knowledge project-summary --project <project_id>
+```
+
+返回结构：`activeSprints`（活跃迭代列表）+ `categoryStats`（各分类工作项数量统计）。
+
+| 场景 | 操作 |
+|------|------|
+| "总结需求 #1234 的讨论" | `knowledge context 1234` → 读 `comments` |
+| "这个需求拆了哪些任务" | `knowledge context 1234 --depth 2` → 分析 `childrenTree` |
+| "这个 Bug 属于哪个大需求" | `knowledge context <bug_id>` → 读 `parentChain` |
+| "项目目前什么状态" | `knowledge project-summary` |
+
+注意：`--depth` 越大请求越多，建议不超过 3。
+
+## 代码管理（Codeup）
+
+```bash
+# 仓库
+yunxiao_cli codeup repo list [--search "frontend"]
+yunxiao_cli codeup repo get <repo_id>
+
+# 分支
+yunxiao_cli codeup branch list <repo_id> [--search "feature"]
+
+# 文件
+yunxiao_cli codeup file list <repo_id> [--path "src/main"] [--ref develop] [--recursive]
+yunxiao_cli codeup file get <repo_id> "README.md" [--ref develop]
+
+# 提交
+yunxiao_cli codeup commit list <repo_id> [--ref develop] [--path "src/"] [--search "fix"]
+yunxiao_cli codeup commit list <repo_id> --since "2026-04-01T00:00:00Z"
+yunxiao_cli codeup commit get <repo_id> <sha>
+
+# 代码比较
+yunxiao_cli codeup compare <repo_id> --from master --to develop
+
+# 合并请求（MR）
+yunxiao_cli codeup mr list [--repo <repo_id>] [--state opened] [--search "新功能"]
+yunxiao_cli codeup mr get <repo_id> <local_id>
+yunxiao_cli codeup mr comments <repo_id> <local_id>
+```
+
+| 场景 | 操作 |
+|------|------|
+| "README 写了什么" | `codeup file get <repo_id> README.md` |
+| "src 目录有哪些文件" | `codeup file list <repo_id> --path src` |
+| "最近有什么代码变更" | `codeup commit list <repo_id> --since 2026-04-20T00:00:00Z` |
+| "master 和 develop 差了什么" | `codeup compare <repo_id> --from master --to develop` |
+| "有哪些待审查的 MR" | `codeup mr list --state opened` |
+| "审查者对 MR #5 说了什么" | `codeup mr comments <repo_id> 5` |
+
+注意：`repo_id` 可以是数字 ID 也可以是 `orgId/repoName` 格式；`codeup file get` 返回 base64 编码内容。
 
 ## 工作项内容模板与规范
 
