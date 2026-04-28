@@ -253,16 +253,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     knowledge_summary_parser.add_argument("--profile", help="profile 名称")
     knowledge_summary_parser.add_argument("--project", help="项目 ID；不传时使用 profile 内全部项目")
-    knowledge_download_parser = knowledge_subparsers.add_parser(
+
+    thoughts_parser = subparsers.add_parser("thoughts", help="云效 Thoughts 知识库文档操作")
+    thoughts_subparsers = thoughts_parser.add_subparsers(dest="thoughts_command")
+    thoughts_download_parser = thoughts_subparsers.add_parser(
         "download",
         help="下载知识库为 Markdown",
-        description="根据工作区概览 URL 下载整个知识库，保持目录结构并导出为 Markdown。",
+        description="根据工作区概览 URL 下载整个 Thoughts 知识库，保持目录结构并导出为 Markdown。",
     )
-    knowledge_download_parser.add_argument("--url", required=True, help="知识库工作区概览 URL")
-    knowledge_download_parser.add_argument("--output", help="本地输出目录；不传时默认使用知识库名称")
-    knowledge_download_parser.add_argument("--cookie", help="浏览器会话 Cookie 字符串，或导出的 Cookie JSON")
-    knowledge_download_parser.add_argument("--cookie-file", help="Cookie 文件路径，支持浏览器导出的 JSON")
-    knowledge_download_parser.add_argument(
+    thoughts_download_parser.add_argument("--url", required=True, help="知识库工作区概览 URL")
+    thoughts_download_parser.add_argument("--output", help="本地输出目录；不传时默认使用知识库名称")
+    thoughts_download_parser.add_argument("--cookie", help="浏览器会话 Cookie 字符串，或导出的 Cookie JSON")
+    thoughts_download_parser.add_argument("--cookie-file", help="Cookie 文件路径，支持浏览器导出的 JSON")
+    thoughts_download_parser.add_argument(
         "--thread",
         dest="concurrency",
         metavar="THREAD",
@@ -270,7 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=3,
         help="并发导出数，默认 3",
     )
-    knowledge_download_parser.add_argument(
+    thoughts_download_parser.add_argument(
         "--browser",
         choices=["chrome", "edge", "brave", "firefox"],
         help="从本机浏览器导入 aliyun.com Cookie",

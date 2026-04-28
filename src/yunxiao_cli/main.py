@@ -384,7 +384,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
-        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "download":
+        if args.command == "thoughts" and getattr(args, "thoughts_command", None) == "download":
             thoughts_knowledge_service = ThoughtsKnowledgeService()
             data = thoughts_knowledge_service.download(
                 url=args.url,
