@@ -41,23 +41,24 @@ yunxiao_cli workitem transition <id> --profile <profile> --to "处理中" \
 
 **步骤**：
 
-1. 与用户对话，整理需求，生成需求文档
-2. 用户确认文档后，创建工作项：
+1. 与用户对话，整理需求
+2. 读取模板 [requirement-template.md](../templates/requirement-template.md)，填充所有 `{{}}` 占位符，删除 `<!-- -->` 注释，生成 `req.md`
+3. 用户确认文档后，创建工作项：
 
 ```bash
 yunxiao_cli workitem create --profile <profile> \
   --category Req \
-  --subject "<需求标题>" \
+  --subject "[用户运营] 新增用户画像标签" \
   --desc-file ./req.md \
   --tag standard-flow
 # 默认状态为：待处理
 ```
 
-3. 在评论中指定评审 agent，并推进状态：
+4. 读取模板 [reply-review-template.md](../templates/reply-review-template.md)，填充后在评论中指定评审 agent，并推进状态：
 
 ```bash
 yunxiao_cli comment add --profile <profile> --workitem <id> \
-  --content "@review-agent 请评审此需求"
+  --content "<按 reply-review-template 填充的评审申请内容>"
 
 yunxiao_cli workitem transition <id> --profile <profile> --to "待评审"
 ```
@@ -114,19 +115,21 @@ yunxiao_cli workitem search --profile <profile> \
 yunxiao_cli workitem get <id> --profile <profile> --with-parent
 ```
 
-2. 为每个设计产物创建子任务（UI 流程图、交互说明、接口草稿等）：
+2. 为每个设计产物创建子任务：读取 [task-template.md](../templates/task-template.md) 填充后生成描述文件
 
 ```bash
 yunxiao_cli workitem create --profile <profile> \
-  --category Task --subject "UI 流程设计 - <需求名>"
+  --category Task \
+  --subject "[用户画像标签] UI 流程设计" \
+  --desc-file ./task-ui.md
 yunxiao_cli relation add --profile <profile> --parent <req_id> --child <task_id>
 ```
 
-3. 设计完成后更新子任务状态，在父需求评论中汇总，推进需求状态：
+3. 设计完成后，读取 [reply-progress-template.md](../templates/reply-progress-template.md) 填充后汇总评论，推进需求状态：
 
 ```bash
 yunxiao_cli comment add --profile <profile> --workitem <req_id> \
-  --content "设计已完成，产物：<子任务列表>"
+  --content "<按 reply-progress-template 填充的进度同步内容>"
 yunxiao_cli workitem transition <req_id> --profile <profile> --to "设计完成"
 ```
 
@@ -153,19 +156,21 @@ yunxiao_cli workitem get <req_id> --profile <profile> --with-parent
 yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发中"
 ```
 
-2. 拆解开发子任务并关联：
+2. 拆解开发子任务：读取 [task-template.md](../templates/task-template.md) 填充后生成描述文件并关联：
 
 ```bash
 yunxiao_cli workitem create --profile <profile> \
-  --category Task --subject "<功能模块名>"
+  --category Task \
+  --subject "[用户画像标签] 后端 getUserTag 接口" \
+  --desc-file ./task-dev.md
 yunxiao_cli relation add --profile <profile> --parent <req_id> --child <task_id>
 ```
 
-3. 所有开发子任务完成后，推进状态：
+3. 所有开发子任务完成后，读取 [reply-progress-template.md](../templates/reply-progress-template.md) 填充后推进状态：
 
 ```bash
 yunxiao_cli comment add --profile <profile> --workitem <req_id> \
-  --content "开发已完成，PR：<链接>"
+  --content "<按 reply-progress-template 填充的进度同步内容>"
 yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发完成"
 ```
 

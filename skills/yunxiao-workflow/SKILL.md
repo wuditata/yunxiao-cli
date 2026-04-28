@@ -185,12 +185,43 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 
 ## 工作项内容模板与规范
 
-在创建不同类型的工作项或发表评论交流时，为了保证信息的高效可读性，各 Agent 和协作者应参考以下规范使用对应的模板格式记录信息：
+创建工作项或发表评论时，**必须**按以下流程使用对应模板。
 
-| 模板类型 | 适用场景 | 模板文档 |
+### 模板通用规则
+
+- 模板文件中 `{{占位符}}` 标记的位置**必须填充**实际内容
+- 模板文件中 `<!-- -->` HTML 注释是给 AI 的提示，生成最终内容时**必须删除**
+- 标题规范写在模板顶部注释块中，生成后传入 `--subject` 参数
+- 可选章节（标题含"可选"）不适用时**整节删除**，不要留空
+
+### 创建工作项（Req / Task / Bug）
+
+操作流程：
+
+1. 根据 `--category` 选择对应模板文件
+2. 读取模板，按上下文填充所有 `{{}}` 占位符
+3. 删除所有 `<!-- -->` 注释
+4. 将最终内容写入临时 `.md` 文件，通过 `--desc-file` 传入
+5. 按模板顶部注释的「标题规范」生成标题，通过 `--subject` 传入
+
+| category | 标题格式 | 描述模板 |
 |----------|----------|----------|
-| 需求规范 | 描述业务线新功能、期望与验收标准 | [requirement-template.md](./templates/requirement-template.md) |
-| 任务规范 | 拆解自需求的具体开发或实施步骤指引 | [task-template.md](./templates/task-template.md) |
-| Bug规范 | 记录系统异常、缺陷复现与排查建议 | [bug-template.md](./templates/bug-template.md) |
-| 回复规范 | 进度同步、代码提交、答疑确认或评审 | [reply-template.md](./templates/reply-template.md) |
-| Git规范 | 指导标准代码提交与自动关联工作项 | [git-commit-template.md](./templates/git-commit-template.md) |
+| Req | `[模块/归属] 需求简述` | [requirement-template.md](./templates/requirement-template.md) |
+| Task | `[父需求摘要] 具体任务` | [task-template.md](./templates/task-template.md) |
+| Bug | `[环境/模块] 现象表现` | [bug-template.md](./templates/bug-template.md) |
+
+### 发表评论
+
+根据评论目的选择对应模板，填充后作为 `comment add --content` 的内容：
+
+| 评论目的 | 模板 |
+|----------|------|
+| 进度同步 / 代码提交 | [reply-progress-template.md](./templates/reply-progress-template.md) |
+| 疑点确认 / 阻塞报告 | [reply-blocker-template.md](./templates/reply-blocker-template.md) |
+| 评审申请 | [reply-review-template.md](./templates/reply-review-template.md) |
+
+### Git 提交规范
+
+| 模板 | 说明 |
+|------|------|
+| [git-commit-template.md](./templates/git-commit-template.md) | Angular 规范 + 云效工作项自动关联 |
