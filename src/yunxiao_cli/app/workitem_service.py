@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.parse
 from datetime import datetime
+from html.parser import HTMLParser
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,30 @@ from .errors import CliError
 from .meta_service import MetaService
 from .profile_service import ProfileService
 from .workitem_summary import WorkitemSummaryBuilder
+
+
+class _DescriptionResourceParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.refs: list[dict[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag_name = tag.lower()
+        for name, value in attrs:
+            if not value:
+                continue
+            attr_name = name.lower()
+            if attr_name not in {"src", "href"}:
+                continue
+            self.refs.append({"kind": self._kind(tag_name, attr_name), "original_url": value})
+
+    @staticmethod
+    def _kind(tag_name: str, attr_name: str) -> str:
+        if tag_name == "img":
+            return "image"
+        if attr_name == "href":
+            return "link"
+        return "resource"
 
 
 class WorkitemService:
@@ -124,6 +150,7 @@ class WorkitemService:
         if with_attachments:
             data["attachments"] = workitem.get("attachments") or []
             data["description_images"] = self._extract_description_images(workitem.get("description"))
+            data["resources"] = self._resolve_workitem_resources(api, profile.org, workitem_id, workitem)
         return data, self._profile_dict(profile)
 
     def mine(
@@ -760,7 +787,7 @@ class WorkitemService:
     def _extract_description_images(description: Any) -> list[str]:
         if not isinstance(description, str) or not description:
             return []
-        markdown_images = re.findall(r"!\[[^\]]*]\(([^)]+)\)", description)
+        markdown_images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", description)
         html_images = re.findall(r"<img[^>]+src=[\"']([^\"']+)[\"']", description, flags=re.IGNORECASE)
         urls: list[str] = []
         seen: set[str] = set()
@@ -769,3 +796,94 @@ class WorkitemService:
                 seen.add(url)
                 urls.append(url)
         return urls
+
+    def _resolve_workitem_resources(
+        self,
+        api: ProjexAPI,
+        org_id: str,
+        workitem_id: str,
+        workitem: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        resources: list[dict[str, Any]] = []
+        for attachment in workitem.get("attachments") or []:
+            resource: dict[str, Any] = {
+                "source": "attachment",
+                "kind": "attachment",
+                "attachment": attachment,
+            }
+            file_id = self._extract_attachment_file_identifier(attachment)
+            if file_id:
+                resource["fileIdentifier"] = file_id
+                self._attach_file_info(resource, api, org_id, workitem_id, file_id)
+            resources.append(resource)
+
+        for ref in self._extract_description_resource_refs(workitem.get("description")):
+            file_id = self._extract_file_identifier(ref["original_url"])
+            if not file_id:
+                continue
+            resource = {
+                "source": "description",
+                "kind": ref["kind"],
+                "original_url": ref["original_url"],
+                "fileIdentifier": file_id,
+            }
+            self._attach_file_info(resource, api, org_id, workitem_id, file_id)
+            resources.append(resource)
+        return resources
+
+    @staticmethod
+    def _extract_description_resource_refs(description: Any) -> list[dict[str, str]]:
+        if not isinstance(description, str) or not description:
+            return []
+
+        refs: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        def add(kind: str, url: str) -> None:
+            if url in seen:
+                return
+            seen.add(url)
+            refs.append({"kind": kind, "original_url": url})
+
+        for url in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", description):
+            add("image", url)
+        for url in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", description):
+            add("link", url)
+
+        parser = _DescriptionResourceParser()
+        parser.feed(description)
+        for ref in parser.refs:
+            add(ref["kind"], ref["original_url"])
+        return refs
+
+    @staticmethod
+    def _extract_attachment_file_identifier(attachment: Any) -> str | None:
+        if isinstance(attachment, str):
+            return attachment
+        if not isinstance(attachment, dict):
+            return None
+        for key in ("fileIdentifier", "fileId", "id", "identifier"):
+            value = attachment.get(key)
+            if value:
+                return str(value)
+        return None
+
+    @staticmethod
+    def _attach_file_info(
+        resource: dict[str, Any],
+        api: ProjexAPI,
+        org_id: str,
+        workitem_id: str,
+        file_id: str,
+    ) -> None:
+        try:
+            resource["file"] = api.get_workitem_file(org_id, workitem_id, file_id)
+        except Exception:
+            resource["error"] = "resolve failed"
+
+    @staticmethod
+    def _extract_file_identifier(url: str) -> str | None:
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        identifiers = params.get("fileIdentifier")
+        return identifiers[0] if identifiers else None

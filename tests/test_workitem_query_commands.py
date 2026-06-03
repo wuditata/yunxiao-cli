@@ -351,6 +351,12 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
                 return FakeResponse([{"id": "comment-1"}])
             if url.endswith("/workitems/9001"):
                 return FakeResponse({"id": "9001", "subject": "父需求"})
+            if url.endswith("/workitems/1001/files/file-1"):
+                return FakeResponse({"id": "file-1", "name": "附件.png", "url": "https://oss.example.com/attachment.png"})
+            if url.endswith("/workitems/1001/files/desc-image"):
+                return FakeResponse({"id": "desc-image", "name": "描述图.png", "url": "https://oss.example.com/desc.png"})
+            if url.endswith("/workitems/1001/files/desc-doc"):
+                return FakeResponse({"id": "desc-doc", "name": "需求文档.pdf", "url": "https://oss.example.com/desc.pdf"})
             if url.endswith("/workitems/1001"):
                 return FakeResponse(
                     {
@@ -358,7 +364,11 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
                         "subject": "子任务",
                         "parentId": "9001",
                         "attachments": [{"id": "file-1"}],
-                        "description": "![图1](https://img.example.com/1.png)",
+                        "description": (
+                            "![图1](https://img.example.com/1.png)"
+                            "<img src=\"https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier=desc-image\">"
+                            "<a href=\"https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier=desc-doc\">文档</a>"
+                        ),
                     }
                 )
             if url.endswith("/workitems:search"):
@@ -391,6 +401,17 @@ class WorkitemQueryCommandsTest(unittest.TestCase):
         self.assertEqual("comment-1", get_result["data"]["comments"][0]["id"])
         self.assertEqual("file-1", get_result["data"]["attachments"][0]["id"])
         self.assertEqual("https://img.example.com/1.png", get_result["data"]["description_images"][0])
+        self.assertEqual(
+            [
+                ("attachment", "file-1", "https://oss.example.com/attachment.png"),
+                ("description", "desc-image", "https://oss.example.com/desc.png"),
+                ("description", "desc-doc", "https://oss.example.com/desc.pdf"),
+            ],
+            [
+                (item["source"], item["fileIdentifier"], item["file"]["url"])
+                for item in get_result["data"]["resources"]
+            ],
+        )
         self.assertEqual("9001", get_result["data"]["parent"]["id"])
         self.assertEqual("1001", search_result["data"]["items"][0]["id"])
         self.assertEqual("Task", search_result["data"]["items"][0]["category"])

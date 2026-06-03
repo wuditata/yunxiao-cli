@@ -214,6 +214,7 @@ yunxiao workitem transition 1001 --profile pm-dev --to "处理中" --field-json 
 - 摘要字段固定为：`id`、`serial`、`subject`、`category`、`type`、`projectId`、`project`、`statusId`、`status`、`statusPhase`、`assigneeId`、`assignee`、`parentId`、`updatedAt`
 - 如需原始接口字段，显式传 `--raw`
 - 如需正文、评论、附件、父项等明细，调用 `workitem get <id>`
+- `workitem get` 返回 `resources` 数组，聚合附件和正文 HTML/Markdown 中带 `fileIdentifier` 的资源，并解析真实下载信息
 
 ## 创建/更新/流转必填字段
 

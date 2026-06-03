@@ -176,6 +176,7 @@ yunxiao workitem attachment get 1001 --profile <profile> --file file-1
 - `workitem create --attachment <file>`：可重复传入多个文件；工单创建成功后按顺序上传
 - `workitem attachment upload <id> --path <file>`：给已有工单补传单个附件
 - `workitem attachment get <id> --file <file_id>`：查看附件文件信息和下载地址
+- `workitem get` 返回 `resources` 数组，聚合附件和正文 HTML/Markdown 中带 `fileIdentifier` 的资源，并解析真实下载信息。
 
 失败语义：
 
