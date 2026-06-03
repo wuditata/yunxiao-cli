@@ -311,6 +311,14 @@ yunxiao_cli codeup compare <repo_id> --from master --to develop
 # 合并请求（MR）
 yunxiao_cli codeup mr list [--repo <repo_id>] [--state opened] [--search "新功能"]
 yunxiao_cli codeup mr get <repo_id> <local_id>
+yunxiao_cli codeup mr create <repo_id> \
+  --title "修复登录失败" \
+  --source feature/login-fix \
+  --target main \
+  --desc-file ./mr.md \
+  --reviewer <user_id_1>,<user_id_2> \
+  --workitem <workitem_id> \
+  --ai-review
 yunxiao_cli codeup mr comments <repo_id> <local_id>
 ```
 
@@ -321,9 +329,18 @@ yunxiao_cli codeup mr comments <repo_id> <local_id>
 | "最近有什么代码变更" | `codeup commit list <repo_id> --since 2026-04-20T00:00:00Z` |
 | "master 和 develop 差了什么" | `codeup compare <repo_id> --from master --to develop` |
 | "有哪些待审查的 MR" | `codeup mr list --state opened` |
+| "提交一个 MR/PR" | `codeup mr create <repo_id> --title ... --source ... --target ...` |
 | "审查者对 MR #5 说了什么" | `codeup mr comments <repo_id> 5` |
 
-注意：`repo_id` 可以是数字 ID 也可以是 `orgId/repoName` 格式；`codeup file get` 返回 base64 编码内容。
+注意：
+
+- 云效 Codeup 的 PR/MR 在 OpenAPI 中叫 `ChangeRequest`。
+- 创建 MR 时优先使用数字 `repo_id`；如果使用 `orgId/repoName`，CLI 会先查仓库数字 ID。
+- `--source-project-id` / `--target-project-id` 只在跨库合并或仓库 ID 无法自动推断时手动传。
+- 多行 MR 描述用 `--desc-file`，避免 shell 解析破坏 Markdown。
+- `--reviewer` 和 `--workitem` 可重复传，也可用逗号分隔。
+- `--ai-review` 会传 `triggerAIReviewRun=true`。
+- `codeup file get` 返回 base64 编码内容。
 
 ## 工作项内容模板与规范
 

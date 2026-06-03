@@ -489,6 +489,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 _print_success(data=data, profile=profile)
                 return 0
+            if getattr(args, "codeup_mr_command", None) == "create":
+                data, profile = codeup_service.create_mr(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    title=args.title,
+                    source_branch=args.source,
+                    target_branch=args.target,
+                    description=args.desc,
+                    desc_file=args.desc_file,
+                    source_project_id=args.source_project_id,
+                    target_project_id=args.target_project_id,
+                    reviewer_ids=args.reviewer,
+                    work_item_ids=args.workitem,
+                    create_from=args.create_from,
+                    trigger_ai_review=args.ai_review,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
             if getattr(args, "codeup_mr_command", None) == "comments":
                 data, profile = codeup_service.list_mr_comments(
                     profile_name=args.profile,

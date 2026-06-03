@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ..domain.store import Store
 from ..infra.codeup import CodeupAPI
+from .errors import CliError
 from .profile_service import ProfileService
 
 
@@ -179,6 +181,41 @@ class CodeupService:
         mr = api.get_change_request(profile.org, repo_id, local_id)
         return {"changeRequest": mr}, self._profile_dict(profile)
 
+    def create_mr(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        title: str,
+        source_branch: str,
+        target_branch: str,
+        description: str | None = None,
+        desc_file: str | None = None,
+        source_project_id: str | None = None,
+        target_project_id: str | None = None,
+        reviewer_ids: list[str] | None = None,
+        work_item_ids: list[str] | None = None,
+        create_from: str = "COMMAND_LINE",
+        trigger_ai_review: bool = False,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        mr = api.create_change_request(
+            profile.org,
+            repo_id,
+            title=title,
+            source_branch=source_branch,
+            target_branch=target_branch,
+            description=self._load_description(description, desc_file),
+            source_project_id=source_project_id,
+            target_project_id=target_project_id,
+            reviewer_user_ids=self._split_values(reviewer_ids),
+            work_item_ids=self._split_values(work_item_ids),
+            create_from=create_from,
+            trigger_ai_review=trigger_ai_review,
+        )
+        return {"changeRequest": mr}, self._profile_dict(profile)
+
     def list_mr_comments(
         self,
         *,
@@ -209,3 +246,23 @@ class CodeupService:
             "project": profile.project,
             "projects": profile.projects,
         }
+
+    @staticmethod
+    def _load_description(description: str | None, desc_file: str | None) -> str | None:
+        if description and desc_file:
+            raise CliError("--desc 与 --desc-file 不能同时使用")
+        if not desc_file:
+            return description
+        try:
+            return Path(desc_file).read_text(encoding="utf-8")
+        except OSError as error:
+            raise CliError(f"读取描述文件失败：{desc_file}") from error
+
+    @staticmethod
+    def _split_values(values: list[str] | None) -> list[str] | None:
+        if not values:
+            return None
+        result: list[str] = []
+        for value in values:
+            result.extend(item.strip() for item in value.split(",") if item.strip())
+        return result or None

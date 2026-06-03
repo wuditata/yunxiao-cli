@@ -350,6 +350,25 @@ def build_parser() -> argparse.ArgumentParser:
     codeup_mr_get.add_argument("repo_id", help="仓库 ID")
     codeup_mr_get.add_argument("local_id", help="合并请求局部 ID")
     codeup_mr_get.add_argument("--profile", help="profile 名称")
+    codeup_mr_create = codeup_mr_subparsers.add_parser("create", help="创建合并请求", description="创建 Codeup 合并请求。")
+    codeup_mr_create.add_argument("repo_id", help="仓库 ID 或 orgId/repoName 格式")
+    codeup_mr_create.add_argument("--profile", help="profile 名称")
+    codeup_mr_create.add_argument("--title", required=True, help="合并请求标题")
+    codeup_mr_create.add_argument("--source", required=True, help="源分支")
+    codeup_mr_create.add_argument("--target", required=True, help="目标分支")
+    codeup_mr_create.add_argument("--desc", help="合并请求描述")
+    codeup_mr_create.add_argument("--desc-file", help="从文件读取合并请求描述")
+    codeup_mr_create.add_argument("--source-project-id", help="源仓库数字 ID；不传时按仓库 ID 推断")
+    codeup_mr_create.add_argument("--target-project-id", help="目标仓库数字 ID；不传时按仓库 ID 推断")
+    codeup_mr_create.add_argument("--reviewer", action="append", help="评审人 userId，可重复或用逗号分隔")
+    codeup_mr_create.add_argument("--workitem", action="append", help="关联工作项 ID，可重复或用逗号分隔")
+    codeup_mr_create.add_argument(
+        "--create-from",
+        choices=["WEB", "COMMAND_LINE"],
+        default="COMMAND_LINE",
+        help="创建来源，默认 COMMAND_LINE",
+    )
+    codeup_mr_create.add_argument("--ai-review", action="store_true", help="触发 AI 评审")
     codeup_mr_comments = codeup_mr_subparsers.add_parser("comments", help="查看 MR 评论", description="查看合并请求的评论和代码审查意见。")
     codeup_mr_comments.add_argument("repo_id", help="仓库 ID")
     codeup_mr_comments.add_argument("local_id", help="合并请求局部 ID")

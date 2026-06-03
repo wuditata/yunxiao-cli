@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
-from .base import BaseAPI
+from .base import BaseAPI, YunxiaoAPIError
 
 
 class CodeupAPI(BaseAPI):
@@ -206,6 +206,50 @@ class CodeupAPI(BaseAPI):
             f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}"
         )
 
+    def create_change_request(
+        self,
+        org_id: str,
+        repo_id: str,
+        *,
+        title: str,
+        source_branch: str,
+        target_branch: str,
+        description: str | None = None,
+        source_project_id: str | None = None,
+        target_project_id: str | None = None,
+        reviewer_user_ids: list[str] | None = None,
+        work_item_ids: list[str] | None = None,
+        create_from: str = "COMMAND_LINE",
+        trigger_ai_review: bool = False,
+    ) -> dict:
+        encoded = self._encode_repo_id(repo_id)
+        source_id, target_id = self._resolve_project_ids(
+            org_id,
+            repo_id,
+            encoded,
+            source_project_id,
+            target_project_id,
+        )
+        payload: dict[str, Any] = {
+            "title": title,
+            "sourceBranch": source_branch,
+            "targetBranch": target_branch,
+            "sourceProjectId": source_id,
+            "targetProjectId": target_id,
+            "createFrom": create_from,
+        }
+        if description is not None:
+            payload["description"] = description
+        if reviewer_user_ids is not None:
+            payload["reviewerUserIds"] = reviewer_user_ids
+        if work_item_ids is not None:
+            payload["workItemIds"] = work_item_ids
+        payload["triggerAIReviewRun"] = trigger_ai_review
+        return self.post(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests",
+            data=payload,
+        )
+
     def list_change_request_comments(
         self,
         org_id: str,
@@ -231,3 +275,30 @@ class CodeupAPI(BaseAPI):
         if isinstance(items, list):
             return items
         return items.get("result") or items.get("items") or []
+
+    def _resolve_project_ids(
+        self,
+        org_id: str,
+        repo_id: str,
+        encoded_repo_id: str,
+        source_project_id: str | None,
+        target_project_id: str | None,
+    ) -> tuple[str, str]:
+        source_id = self._project_id(source_project_id)
+        target_id = self._project_id(target_project_id)
+        if source_id and target_id:
+            return source_id, target_id
+
+        numeric_id = repo_id if repo_id.isdigit() else self._repository_numeric_id(org_id, encoded_repo_id)
+        return source_id or numeric_id, target_id or numeric_id
+
+    @staticmethod
+    def _project_id(value: str | int | None) -> str | None:
+        return str(value) if value is not None else None
+
+    def _repository_numeric_id(self, org_id: str, encoded_repo_id: str) -> str:
+        repo = self.get(f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded_repo_id}")
+        repo_id = repo.get("id") if isinstance(repo, dict) else None
+        if repo_id is None:
+            raise YunxiaoAPIError("could not resolve repository numeric id")
+        return str(repo_id)
