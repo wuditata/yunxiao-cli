@@ -80,7 +80,7 @@ class ProfileService:
         context = self.context_service.resolve(profile=name) if self.context_service else None
         profile_name = self.store.resolve_profile_name(context.profile if context else name)
         if not profile_name:
-            raise CliError("missing profile, use --profile or `yunxiao_cli profile use`")
+            raise CliError("missing profile, use --profile or `yunxiao profile use`")
         try:
             profile = self.store.get_profile(profile_name)
         except FileNotFoundError as error:

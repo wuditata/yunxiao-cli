@@ -14,12 +14,14 @@ if not defined PYTHON_BIN (
     exit /b 1
 )
 
-echo [1/1] install yunxiao_cli package
+echo [1/1] install yunxiao package
 %PYTHON_BIN% -m pip install -e "%SCRIPT_DIR%"
 if errorlevel 1 exit /b 1
 
 echo done
-echo yunxiao_cli --help
+echo yunxiao --help
+echo legacy command remains available:
+echo   yunxiao_cli --help
 echo.
 echo Need install skill? run:
 echo   install_skill.bat

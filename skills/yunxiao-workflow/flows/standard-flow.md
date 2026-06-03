@@ -21,13 +21,13 @@
 
 ```bash
 # 创建 Bug 时传严重程度
-yunxiao_cli workitem create --profile <profile> \
+yunxiao workitem create --profile <profile> \
   --category Bug \
   --subject "登录失败" \
   --field-json '{"严重程度":"3-一般"}'
 
 # 流转状态时传字段
-yunxiao_cli workitem transition <id> --profile <profile> --to "处理中" \
+yunxiao workitem transition <id> --profile <profile> --to "处理中" \
   --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
 ```
 
@@ -46,7 +46,7 @@ yunxiao_cli workitem transition <id> --profile <profile> --to "处理中" \
 3. 用户确认文档后，创建工作项：
 
 ```bash
-yunxiao_cli workitem create --profile <profile> \
+yunxiao workitem create --profile <profile> \
   --category Req \
   --subject "[用户运营] 新增用户画像标签" \
   --desc-file ./req.md \
@@ -57,10 +57,10 @@ yunxiao_cli workitem create --profile <profile> \
 4. 读取模板 [reply-review-template.md](../templates/reply-review-template.md)，填充后在评论中指定评审 agent，并推进状态：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <id> \
+yunxiao comment add --profile <profile> --workitem <id> \
   --content "<按 reply-review-template 填充的评审申请内容>"
 
-yunxiao_cli workitem transition <id> --profile <profile> --to "待评审"
+yunxiao workitem transition <id> --profile <profile> --to "待评审"
 ```
 
 ---
@@ -70,7 +70,7 @@ yunxiao_cli workitem transition <id> --profile <profile> --to "待评审"
 **触发**：agent 被唤起后，查询待评审任务：
 
 ```bash
-yunxiao_cli workitem search --profile <profile> \
+yunxiao workitem search --profile <profile> \
   --category Req --status "待评审" --tag standard-flow
 ```
 
@@ -79,21 +79,21 @@ yunxiao_cli workitem search --profile <profile> \
 1. 读取需求文档，分析合理性和可行性
 
 ```bash
-yunxiao_cli workitem get <id> --profile <profile> --with-parent
+yunxiao workitem get <id> --profile <profile> --with-parent
 ```
 
 2. 在评论中写明评审意见：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <id> \
+yunxiao comment add --profile <profile> --workitem <id> \
   --content "评审意见：<内容>"
 ```
 
 3. PM agent 根据意见修改需求文档后，推进状态：
 
 ```bash
-yunxiao_cli workitem update <id> --profile <profile> --desc-file ./req.md
-yunxiao_cli workitem transition <id> --profile <profile> --to "设计中"
+yunxiao workitem update <id> --profile <profile> --desc-file ./req.md
+yunxiao workitem transition <id> --profile <profile> --to "设计中"
 ```
 
 ---
@@ -103,7 +103,7 @@ yunxiao_cli workitem transition <id> --profile <profile> --to "设计中"
 **触发**：agent 被唤起后，查询设计中任务：
 
 ```bash
-yunxiao_cli workitem search --profile <profile> \
+yunxiao workitem search --profile <profile> \
   --category Req --status "设计中" --tag standard-flow
 ```
 
@@ -112,25 +112,25 @@ yunxiao_cli workitem search --profile <profile> \
 1. 读取需求文档，制定设计方案
 
 ```bash
-yunxiao_cli workitem get <id> --profile <profile> --with-parent
+yunxiao workitem get <id> --profile <profile> --with-parent
 ```
 
 2. 为每个设计产物创建子任务：读取 [task-template.md](../templates/task-template.md) 填充后生成描述文件
 
 ```bash
-yunxiao_cli workitem create --profile <profile> \
+yunxiao workitem create --profile <profile> \
   --category Task \
   --subject "[用户画像标签] UI 流程设计" \
   --desc-file ./task-ui.md
-yunxiao_cli relation add --profile <profile> --parent <req_id> --child <task_id>
+yunxiao relation add --profile <profile> --parent <req_id> --child <task_id>
 ```
 
 3. 设计完成后，读取 [reply-progress-template.md](../templates/reply-progress-template.md) 填充后汇总评论，推进需求状态：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <req_id> \
+yunxiao comment add --profile <profile> --workitem <req_id> \
   --content "<按 reply-progress-template 填充的进度同步内容>"
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "设计完成"
+yunxiao workitem transition <req_id> --profile <profile> --to "设计完成"
 ```
 
 ---
@@ -140,7 +140,7 @@ yunxiao_cli workitem transition <req_id> --profile <profile> --to "设计完成"
 **触发**：agent 被唤起后，查询设计完成的需求：
 
 ```bash
-yunxiao_cli workitem search --profile <profile> \
+yunxiao workitem search --profile <profile> \
   --category Req --status "设计完成" --tag standard-flow
 ```
 
@@ -149,29 +149,29 @@ yunxiao_cli workitem search --profile <profile> \
 1. 读取需求文档和设计子任务，推进需求至开发中：
 
 ```bash
-yunxiao_cli workitem get <req_id> --profile <profile> --with-parent
+yunxiao workitem get <req_id> --profile <profile> --with-parent
 ```
 
 ```bash
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发中"
+yunxiao workitem transition <req_id> --profile <profile> --to "开发中"
 ```
 
 2. 拆解开发子任务：读取 [task-template.md](../templates/task-template.md) 填充后生成描述文件并关联：
 
 ```bash
-yunxiao_cli workitem create --profile <profile> \
+yunxiao workitem create --profile <profile> \
   --category Task \
   --subject "[用户画像标签] 后端 getUserTag 接口" \
   --desc-file ./task-dev.md
-yunxiao_cli relation add --profile <profile> --parent <req_id> --child <task_id>
+yunxiao relation add --profile <profile> --parent <req_id> --child <task_id>
 ```
 
 3. 所有开发子任务完成后，读取 [reply-progress-template.md](../templates/reply-progress-template.md) 填充后推进状态：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <req_id> \
+yunxiao comment add --profile <profile> --workitem <req_id> \
   --content "<按 reply-progress-template 填充的进度同步内容>"
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发完成"
+yunxiao workitem transition <req_id> --profile <profile> --to "开发完成"
 ```
 
 ---
@@ -181,7 +181,7 @@ yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发完成"
 **触发**：agent 被唤起后，查询开发完成的需求：
 
 ```bash
-yunxiao_cli workitem search --profile <profile> \
+yunxiao workitem search --profile <profile> \
   --category Req --status "开发完成" --tag standard-flow
 ```
 
@@ -190,26 +190,26 @@ yunxiao_cli workitem search --profile <profile> \
 1. 推进至测试中，创建测试子任务：
 
 ```bash
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "测试中"
-yunxiao_cli workitem create --profile <profile> \
+yunxiao workitem transition <req_id> --profile <profile> --to "测试中"
+yunxiao workitem create --profile <profile> \
   --category Task --subject "测试 - <需求名>"
-yunxiao_cli relation add --profile <profile> --parent <req_id> --child <task_id>
+yunxiao relation add --profile <profile> --parent <req_id> --child <task_id>
 ```
 
 2. 测试通过后：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <req_id> \
+yunxiao comment add --profile <profile> --workitem <req_id> \
   --content "测试通过，用例：<数量>"
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "已完成"
+yunxiao workitem transition <req_id> --profile <profile> --to "已完成"
 ```
 
 3. 测试发现阻塞问题，回退至开发中：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <req_id> \
+yunxiao comment add --profile <profile> --workitem <req_id> \
   --content "测试未通过，问题：<描述>"
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发中"
+yunxiao workitem transition <req_id> --profile <profile> --to "开发中"
 ```
 
 ---
@@ -219,9 +219,9 @@ yunxiao_cli workitem transition <req_id> --profile <profile> --to "开发中"
 任意阶段发现需求无法继续（需求撤销、技术不可行等）：
 
 ```bash
-yunxiao_cli comment add --profile <profile> --workitem <req_id> \
+yunxiao comment add --profile <profile> --workitem <req_id> \
   --content "终止原因：<说明>"
-yunxiao_cli workitem transition <req_id> --profile <profile> --to "已取消"
+yunxiao workitem transition <req_id> --profile <profile> --to "已取消"
 ```
 
 ## 约束

@@ -18,18 +18,18 @@
 
 ```bash
 # 多 profile 切换
-yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id>
-yunxiao_cli profile use pm-dev
+yunxiao profile add pm-dev --account pm-a --org <org_id> --project <project_id>
+yunxiao profile use pm-dev
 
 # 创建工作项并附带多个附件
-yunxiao_cli workitem create --category Req --subject "支持 CLI" \
+yunxiao workitem create --category Req --subject "支持 CLI" \
   --attachment ./spec.md --attachment ./demo.png
 
 # 给已有工单补传附件
-yunxiao_cli workitem attachment upload 1001 --path ./hotfix.patch
+yunxiao workitem attachment upload 1001 --path ./hotfix.patch
 
 # 状态流转时一次补齐必填字段
-yunxiao_cli workitem transition 1001 --to "处理中" \
+yunxiao workitem transition 1001 --to "处理中" \
   --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
 ```
 
@@ -63,8 +63,10 @@ pip install -e .
 安装后可直接使用：
 
 ```bash
-yunxiao_cli --help
+yunxiao --help
 ```
+
+兼容旧命令 `yunxiao_cli`，已有脚本不需要立刻迁移。
 
 ## 首次使用
 
@@ -73,7 +75,7 @@ yunxiao_cli --help
 首次接入时，推荐直接生成最小配置：
 
 ```bash
-yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project_id>
+yunxiao context init --profile <profile> --assignee <assignee> --project <project_id>
 ```
 
 也可以基于模板创建：
@@ -98,15 +100,15 @@ Copy-Item .yunxiao.json.temple .yunxiao.json
 初始化 profile：
 
 ```bash
-yunxiao_cli login token <token> --account <assignee>
-yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
-yunxiao_cli profile use <profile>
+yunxiao login token <token> --account <assignee>
+yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id>
+yunxiao profile use <profile>
 ```
 
 多项目场景可直接传逗号分隔：
 
 ```bash
-yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
+yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
 如果项目里已经有 `.yunxiao.json`，后续常用命令可直接省略 `--profile`；创建和更新工单时也会优先使用其中的 `assignee`。
@@ -131,60 +133,60 @@ yunxiao-cli/
 登录并保存账号：
 
 ```bash
-yunxiao_cli login token <token> --account pm-a
+yunxiao login token <token> --account pm-a
 ```
 
 登录结果会返回当前可见的组织和项目，之后添加 profile 并切换默认：
 
 ```bash
-yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id>
-yunxiao_cli profile use pm-dev
+yunxiao profile add pm-dev --account pm-a --org <org_id> --project <project_id>
+yunxiao profile use pm-dev
 ```
 
 多项目 profile：
 
 ```bash
-yunxiao_cli profile add pm-dev --account pm-a --org <org_id> --project <project_id_1>,<project_id_2>
+yunxiao profile add pm-dev --account pm-a --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
 为当前 repo 绑定默认上下文：
 
 ```bash
-yunxiao_cli context init --profile pm-dev --assignee pm-a --project <project_id>
+yunxiao context init --profile pm-dev --assignee pm-a --project <project_id>
 ```
 
 查看元数据：
 
 ```bash
-yunxiao_cli meta reload --profile pm-dev
-yunxiao_cli meta types --profile pm-dev
-yunxiao_cli meta statuses --profile pm-dev --category Task
-yunxiao_cli meta fields --profile pm-dev --category Task
+yunxiao meta reload --profile pm-dev
+yunxiao meta types --profile pm-dev
+yunxiao meta statuses --profile pm-dev --category Task
+yunxiao meta fields --profile pm-dev --category Task
 ```
 
 查看项目信息：
 
 ```bash
-yunxiao_cli project list --profile pm-dev
-yunxiao_cli project get --profile pm-dev
+yunxiao project list --profile pm-dev
+yunxiao project get --profile pm-dev
 ```
 
 工作项操作：
 
 ```bash
-yunxiao_cli workitem create --profile pm-dev --category Req --subject "支持 CLI"
-yunxiao_cli workitem create --profile pm-dev --category Bug --subject "登录失败" --field "严重程度=3-一般"
-yunxiao_cli workitem create --profile pm-dev --category Req --subject "附带材料" --attachment ./spec.md --attachment ./demo.png
-yunxiao_cli workitem get 1001 --profile pm-dev --with-parent
-yunxiao_cli workitem mine --profile pm-dev --category all
-yunxiao_cli workitem mine --profile pm-dev --project 456,457 --sort time
-yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中"
-yunxiao_cli workitem search --profile pm-dev --project 456,457 --category Task --status "处理中" --sort time
-yunxiao_cli workitem search --profile pm-dev --category Task --status "处理中" --raw
-yunxiao_cli workitem update 1001 --profile pm-dev --assigned-to "张三"
-yunxiao_cli workitem transition 1001 --profile pm-dev --to "已完成"
+yunxiao workitem create --profile pm-dev --category Req --subject "支持 CLI"
+yunxiao workitem create --profile pm-dev --category Bug --subject "登录失败" --field "严重程度=3-一般"
+yunxiao workitem create --profile pm-dev --category Req --subject "附带材料" --attachment ./spec.md --attachment ./demo.png
+yunxiao workitem get 1001 --profile pm-dev --with-parent
+yunxiao workitem mine --profile pm-dev --category all
+yunxiao workitem mine --profile pm-dev --project 456,457 --sort time
+yunxiao workitem search --profile pm-dev --category Task --status "处理中"
+yunxiao workitem search --profile pm-dev --project 456,457 --category Task --status "处理中" --sort time
+yunxiao workitem search --profile pm-dev --category Task --status "处理中" --raw
+yunxiao workitem update 1001 --profile pm-dev --assigned-to "张三"
+yunxiao workitem transition 1001 --profile pm-dev --to "已完成"
 # 状态流转有必填字段时，可在 transition 一次传入
-yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
+yunxiao workitem transition 1001 --profile pm-dev --to "处理中" --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
 ```
 
 创建工作项常用参数：
@@ -202,7 +204,7 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 - `--field`：字段赋值，可重复传，如 `--field "严重程度=3-一般"`
 - `--field-json`：一次传完整字段集，推荐，如 `--field-json '{"严重程度":"3-一般"}'`
 
-已执行 `yunxiao_cli profile use <name>` 或当前目录存在 `.yunxiao.json` 后，命令可省略 `--profile`。
+已执行 `yunxiao profile use <name>` 或当前目录存在 `.yunxiao.json` 后，命令可省略 `--profile`。
 
 `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一排序；如果当前 repo 存在 `.yunxiao.json.project`，默认只查询该项目。
 
@@ -219,15 +221,15 @@ yunxiao_cli workitem transition 1001 --profile pm-dev --to "处理中" --field-j
 
 ```bash
 # 创建 Bug 时传严重程度
-yunxiao_cli workitem create --category Bug --subject "登录失败" \
+yunxiao workitem create --category Bug --subject "登录失败" \
   --field-json '{"严重程度":"3-一般"}'
 
 # 用字段 ID（推荐）
-yunxiao_cli workitem transition 1001 --to "处理中" \
+yunxiao workitem transition 1001 --to "处理中" \
   --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}'
 
 # 或用字段名（会自动映射到字段 ID）
-yunxiao_cli workitem transition 1001 --to "处理中" \
+yunxiao workitem transition 1001 --to "处理中" \
   --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
 ```
 
@@ -236,18 +238,18 @@ yunxiao_cli workitem transition 1001 --to "处理中" \
 评论与父子关系：
 
 ```bash
-yunxiao_cli comment add --profile pm-dev --workitem 1001 --content "@agent 请评审"
-yunxiao_cli comment list --profile pm-dev --workitem 1001
-yunxiao_cli relation add --profile pm-dev --parent 1001 --child 2001
-yunxiao_cli relation children --profile pm-dev --parent 1001
+yunxiao comment add --profile pm-dev --workitem 1001 --content "@agent 请评审"
+yunxiao comment list --profile pm-dev --workitem 1001
+yunxiao relation add --profile pm-dev --parent 1001 --child 2001
+yunxiao relation children --profile pm-dev --parent 1001
 ```
 
 工作项附件：
 
 ```bash
-yunxiao_cli workitem attachment upload 1001 --profile pm-dev --path ./spec.md
-yunxiao_cli workitem attachment list 1001 --profile pm-dev
-yunxiao_cli workitem attachment get 1001 --profile pm-dev --file file-1
+yunxiao workitem attachment upload 1001 --profile pm-dev --path ./spec.md
+yunxiao workitem attachment list 1001 --profile pm-dev
+yunxiao workitem attachment get 1001 --profile pm-dev --file file-1
 ```
 
 附件命令参数：
@@ -289,17 +291,17 @@ playwright install chromium
 
 ```bash
 # 直接传 Cookie
-yunxiao_cli knowledge download \
+yunxiao knowledge download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie "<your_cookie>"
 
 # 传浏览器导出的 Cookie JSON 文件
-yunxiao_cli knowledge download \
+yunxiao knowledge download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie-file ./edge-cookies.json
 
 # 从 Edge 导入 Cookie
-yunxiao_cli knowledge download \
+yunxiao knowledge download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --browser edge \
   --thread 3 \

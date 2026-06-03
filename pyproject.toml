@@ -15,6 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
+yunxiao = "yunxiao_cli.main:main"
 yunxiao_cli = "yunxiao_cli.main:main"
 
 [tool.setuptools]

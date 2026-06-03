@@ -13,9 +13,9 @@ triggers:
 
 ## 概述
 
-云效工作项协作统一走 `yunxiao_cli`。
+云效工作项协作统一走 `yunxiao`。
 
-- 主入口是 `yunxiao_cli`
+- 主入口是 `yunxiao`
 - 输出统一为 JSON：`success`、`profile`、`data`、`warnings`
 - `workitem search` / `workitem mine` 默认返回摘要列表；需要详情时调用 `workitem get`
 
@@ -33,8 +33,8 @@ triggers:
 **流水号解析规则：**
 
 - 格式：`#前缀-数字`，如 `#REQ-42` → serialNumber 为 `REQ-42`
-- 用 `workitem get` 时直接传流水号：`yunxiao_cli workitem get REQ-42`
-- 用 `knowledge context` 聚合上下文：`yunxiao_cli knowledge context REQ-42`
+- 用 `workitem get` 时直接传流水号：`yunxiao workitem get REQ-42`
+- 用 `knowledge context` 聚合上下文：`yunxiao knowledge context REQ-42`
 - 多个流水号出现时（如"看一下 #FE-1 和 #FE-2"），逐个处理
 
 ## 项目级配置
@@ -44,7 +44,7 @@ triggers:
 如果配置不存在：
 
 1. 先从当前对话收集 `profile`、`assignee`、`project`
-2. 信息足够时直接执行 `yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project>`
+2. 信息足够时直接执行 `yunxiao context init --profile <profile> --assignee <assignee> --project <project>`
 3. 只缺字段时一次性追问补齐，不要拆成多轮
 
 ## 字段说明
@@ -80,21 +80,21 @@ triggers:
 首次配置后执行：
 
 ```bash
-yunxiao_cli login token <token> --account <assignee>
-yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
-yunxiao_cli profile use <profile>
+yunxiao login token <token> --account <assignee>
+yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id>
+yunxiao profile use <profile>
 ```
 
 多项目可直接使用：
 
 ```bash
-yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
+yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
 然后为当前 repo 写入项目配置：
 
 ```bash
-yunxiao_cli context init --profile <profile> --assignee <assignee> --project <project_id>
+yunxiao context init --profile <profile> --assignee <assignee> --project <project_id>
 ```
 
 ## 使用流程
@@ -108,39 +108,39 @@ yunxiao_cli context init --profile <profile> --assignee <assignee> --project <pr
 登录与 profile：
 
 ```bash
-yunxiao_cli login token <token> --account <assignee>
-yunxiao_cli profile add <profile> --account <assignee> --org <org_id> --project <project_id>
-yunxiao_cli profile use <profile>
+yunxiao login token <token> --account <assignee>
+yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id>
+yunxiao profile use <profile>
 ```
 
 元数据与项目：
 
 ```bash
-yunxiao_cli meta reload --profile <profile>
-yunxiao_cli meta types --profile <profile>
-yunxiao_cli project list --profile <profile>
+yunxiao meta reload --profile <profile>
+yunxiao meta types --profile <profile>
+yunxiao project list --profile <profile>
 ```
 
 工作项：
 
 ```bash
-yunxiao_cli workitem create --category Req --subject "新需求" --profile <profile>
-yunxiao_cli workitem create --category Bug --subject "登录失败" --profile <profile> \
+yunxiao workitem create --category Req --subject "新需求" --profile <profile>
+yunxiao workitem create --category Bug --subject "登录失败" --profile <profile> \
   --field "严重程度=3-一般"
-yunxiao_cli workitem create --category Req --subject "附带材料" --profile <profile> \
+yunxiao workitem create --category Req --subject "附带材料" --profile <profile> \
   --attachment ./spec.md --attachment ./demo.png
-yunxiao_cli workitem get 1001 --profile <profile>
-yunxiao_cli workitem mine --category all --profile <profile>
-yunxiao_cli workitem mine --category all --project <project_id_1>,<project_id_2> --sort time --profile <profile>
-yunxiao_cli workitem search --category Task --status "处理中" --profile <profile>
-yunxiao_cli workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
-yunxiao_cli workitem search --category Task --status "处理中" --profile <profile> --raw
-yunxiao_cli workitem search --keyword "支付超时" --profile <profile>
-yunxiao_cli workitem search --tag "性能" --priority "P1" --assigned-to "张三" --profile <profile>
-yunxiao_cli workitem update 1001 --desc-file ./req.md --profile <profile>
-yunxiao_cli workitem transition 1001 --to "已完成" --profile <profile>
+yunxiao workitem get 1001 --profile <profile>
+yunxiao workitem mine --category all --profile <profile>
+yunxiao workitem mine --category all --project <project_id_1>,<project_id_2> --sort time --profile <profile>
+yunxiao workitem search --category Task --status "处理中" --profile <profile>
+yunxiao workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
+yunxiao workitem search --category Task --status "处理中" --profile <profile> --raw
+yunxiao workitem search --keyword "支付超时" --profile <profile>
+yunxiao workitem search --tag "性能" --priority "P1" --assigned-to "张三" --profile <profile>
+yunxiao workitem update 1001 --desc-file ./req.md --profile <profile>
+yunxiao workitem transition 1001 --to "已完成" --profile <profile>
 # 目标状态有必填字段时，transition 支持直接传字段
-yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
+yunxiao workitem transition 1001 --to "处理中" --profile <profile> \
   --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}' 
 ```
 
@@ -154,10 +154,10 @@ yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
 示例：
 
 ```bash
-yunxiao_cli workitem create --category Bug --subject "登录失败" --profile <profile> \
+yunxiao workitem create --category Bug --subject "登录失败" --profile <profile> \
   --field-json '{"严重程度":"3-一般"}'
 
-yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
+yunxiao workitem transition 1001 --to "处理中" --profile <profile> \
   --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
 ```
 
@@ -166,9 +166,9 @@ yunxiao_cli workitem transition 1001 --to "处理中" --profile <profile> \
 附件：
 
 ```bash
-yunxiao_cli workitem attachment upload 1001 --profile <profile> --path ./spec.md
-yunxiao_cli workitem attachment list 1001 --profile <profile>
-yunxiao_cli workitem attachment get 1001 --profile <profile> --file file-1
+yunxiao workitem attachment upload 1001 --profile <profile> --path ./spec.md
+yunxiao workitem attachment list 1001 --profile <profile>
+yunxiao workitem attachment get 1001 --profile <profile> --file file-1
 ```
 
 附件相关参数说明：
@@ -187,10 +187,10 @@ yunxiao_cli workitem attachment get 1001 --profile <profile> --file file-1
 评论与关联：
 
 ```bash
-yunxiao_cli comment add --workitem <id> --content "@agent 请评审" --profile <profile>
-yunxiao_cli comment list --workitem <id> --profile <profile>
-yunxiao_cli relation add --parent <id> --child <id> --profile <profile>
-yunxiao_cli relation children --parent <id> --profile <profile>
+yunxiao comment add --workitem <id> --content "@agent 请评审" --profile <profile>
+yunxiao comment list --workitem <id> --profile <profile>
+yunxiao relation add --parent <id> --child <id> --profile <profile>
+yunxiao relation children --parent <id> --profile <profile>
 ```
 
 查询约定：
@@ -224,24 +224,24 @@ yunxiao_cli relation children --parent <id> --profile <profile>
 | `--updated-after` / `--updated-before` | 更新时间范围，格式 `YYYY-MM-DD` |
 
 ```bash
-yunxiao_cli workitem search --keyword "支付超时"
-yunxiao_cli workitem search --tag "性能,P1" --assigned-to "张三"
-yunxiao_cli workitem search --created-after "2026-01-01" --created-before "2026-03-31"
-yunxiao_cli workitem search --category Task --keyword "登录" --priority "P1"
+yunxiao workitem search --keyword "支付超时"
+yunxiao workitem search --tag "性能,P1" --assigned-to "张三"
+yunxiao workitem search --created-after "2026-01-01" --created-before "2026-03-31"
+yunxiao workitem search --category Task --keyword "登录" --priority "P1"
 ```
 
 ## 迭代与版本
 
 ```bash
 # 迭代
-yunxiao_cli sprint list                                  # 列出迭代
-yunxiao_cli sprint list --status DOING                   # 只看进行中的
-yunxiao_cli sprint get <sprint_id> --project <project_id> # 迭代详情
+yunxiao sprint list                                  # 列出迭代
+yunxiao sprint list --status DOING                   # 只看进行中的
+yunxiao sprint get <sprint_id> --project <project_id> # 迭代详情
 
 # 版本
-yunxiao_cli version list                                 # 列出版本
-yunxiao_cli version list --status TODO                   # 只看待开始的
-yunxiao_cli version list --name "v2.0"                   # 按名称搜索
+yunxiao version list                                 # 列出版本
+yunxiao version list --status TODO                   # 只看待开始的
+yunxiao version list --name "v2.0"                   # 按名称搜索
 ```
 
 | 场景 | 操作 |
@@ -254,8 +254,8 @@ yunxiao_cli version list --name "v2.0"                   # 按名称搜索
 ### `knowledge context` — 单个工作项的完整上下文
 
 ```bash
-yunxiao_cli knowledge context <workitem_id>
-yunxiao_cli knowledge context <workitem_id> --depth 3
+yunxiao knowledge context <workitem_id>
+yunxiao knowledge context <workitem_id> --depth 3
 ```
 
 返回结构：
@@ -271,8 +271,8 @@ yunxiao_cli knowledge context <workitem_id> --depth 3
 ### `knowledge project-summary` — 项目全局概览
 
 ```bash
-yunxiao_cli knowledge project-summary
-yunxiao_cli knowledge project-summary --project <project_id>
+yunxiao knowledge project-summary
+yunxiao knowledge project-summary --project <project_id>
 ```
 
 返回结构：`activeSprints`（活跃迭代列表）+ `categoryStats`（各分类工作项数量统计）。
@@ -290,28 +290,28 @@ yunxiao_cli knowledge project-summary --project <project_id>
 
 ```bash
 # 仓库
-yunxiao_cli codeup repo list [--search "frontend"]
-yunxiao_cli codeup repo get <repo_id>
+yunxiao codeup repo list [--search "frontend"]
+yunxiao codeup repo get <repo_id>
 
 # 分支
-yunxiao_cli codeup branch list <repo_id> [--search "feature"]
+yunxiao codeup branch list <repo_id> [--search "feature"]
 
 # 文件
-yunxiao_cli codeup file list <repo_id> [--path "src/main"] [--ref develop] [--recursive]
-yunxiao_cli codeup file get <repo_id> "README.md" [--ref develop]
+yunxiao codeup file list <repo_id> [--path "src/main"] [--ref develop] [--recursive]
+yunxiao codeup file get <repo_id> "README.md" [--ref develop]
 
 # 提交
-yunxiao_cli codeup commit list <repo_id> [--ref develop] [--path "src/"] [--search "fix"]
-yunxiao_cli codeup commit list <repo_id> --since "2026-04-01T00:00:00Z"
-yunxiao_cli codeup commit get <repo_id> <sha>
+yunxiao codeup commit list <repo_id> [--ref develop] [--path "src/"] [--search "fix"]
+yunxiao codeup commit list <repo_id> --since "2026-04-01T00:00:00Z"
+yunxiao codeup commit get <repo_id> <sha>
 
 # 代码比较
-yunxiao_cli codeup compare <repo_id> --from master --to develop
+yunxiao codeup compare <repo_id> --from master --to develop
 
 # 合并请求（MR）
-yunxiao_cli codeup mr list [--repo <repo_id>] [--state opened] [--search "新功能"]
-yunxiao_cli codeup mr get <repo_id> <local_id>
-yunxiao_cli codeup mr create <repo_id> \
+yunxiao codeup mr list [--repo <repo_id>] [--state opened] [--search "新功能"]
+yunxiao codeup mr get <repo_id> <local_id>
+yunxiao codeup mr create <repo_id> \
   --title "修复登录失败" \
   --source feature/login-fix \
   --target main \
@@ -319,7 +319,7 @@ yunxiao_cli codeup mr create <repo_id> \
   --reviewer <user_id_1>,<user_id_2> \
   --workitem <workitem_id> \
   --ai-review
-yunxiao_cli codeup mr comments <repo_id> <local_id>
+yunxiao codeup mr comments <repo_id> <local_id>
 ```
 
 | 场景 | 操作 |

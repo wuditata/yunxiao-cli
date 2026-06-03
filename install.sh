@@ -22,11 +22,13 @@ find_python() {
 
 PYTHON_BIN="$(find_python)"
 
-echo "[1/1] install yunxiao_cli package"
+echo "[1/1] install yunxiao package"
 "${PYTHON_BIN}" -m pip install -e "${SCRIPT_DIR}"
 
 echo "done"
-echo "yunxiao_cli --help"
+echo "yunxiao --help"
+echo "legacy command remains available:"
+echo "  yunxiao_cli --help"
 echo ""
 echo "需要安装 skill 请执行:"
 echo "  ./install_skill.sh install"

@@ -3,7 +3,7 @@ import argparse
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="yunxiao_cli",
+        prog="yunxiao",
         description="云效工作项协作 CLI，统一输出 JSON。",
     )
     subparsers = parser.add_subparsers(dest="command")
