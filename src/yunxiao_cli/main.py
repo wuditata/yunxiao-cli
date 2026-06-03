@@ -515,6 +515,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 _print_success(data=data, profile=profile)
                 return 0
+            if getattr(args, "codeup_mr_command", None) == "merge":
+                data, profile = codeup_service.merge_mr(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                    merge_type=args.merge_type,
+                    merge_message=args.merge_message,
+                    remove_source_branch=args.remove_source_branch,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "review":
+                data, profile = codeup_service.get_mr_review_context(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
         parser.print_help()
         return 0
     except CliError as error:

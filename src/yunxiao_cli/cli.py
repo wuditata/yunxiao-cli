@@ -373,5 +373,20 @@ def build_parser() -> argparse.ArgumentParser:
     codeup_mr_comments.add_argument("repo_id", help="仓库 ID")
     codeup_mr_comments.add_argument("local_id", help="合并请求局部 ID")
     codeup_mr_comments.add_argument("--profile", help="profile 名称")
+    codeup_mr_merge = codeup_mr_subparsers.add_parser("merge", help="合并 MR", description="通过 Codeup OpenAPI 合并合并请求。")
+    codeup_mr_merge.add_argument("repo_id", help="仓库 ID")
+    codeup_mr_merge.add_argument("local_id", help="合并请求局部 ID")
+    codeup_mr_merge.add_argument("--profile", help="profile 名称")
+    codeup_mr_merge.add_argument("--merge-type", default="no-fast-forward", help="合并方式，默认 no-fast-forward")
+    codeup_mr_merge.add_argument("--message", dest="merge_message", help="合并提交信息")
+    codeup_mr_merge.add_argument("--remove-source-branch", action="store_true", help="合并后删除源分支")
+    codeup_mr_review_context = codeup_mr_subparsers.add_parser(
+        "review",
+        help="获取本地 agent 审核上下文",
+        description="获取合并请求详情、版本、评论和代码差异，用于本地 agent 审核。",
+    )
+    codeup_mr_review_context.add_argument("repo_id", help="仓库 ID")
+    codeup_mr_review_context.add_argument("local_id", help="合并请求局部 ID")
+    codeup_mr_review_context.add_argument("--profile", help="profile 名称")
 
     return parser

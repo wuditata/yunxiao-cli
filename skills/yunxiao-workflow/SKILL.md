@@ -320,6 +320,8 @@ yunxiao codeup mr create <repo_id> \
   --workitem <workitem_id> \
   --ai-review
 yunxiao codeup mr comments <repo_id> <local_id>
+yunxiao codeup mr merge <repo_id> <local_id> [--merge-type no-fast-forward] [--message "..."] [--remove-source-branch]
+yunxiao codeup mr review <repo_id> <local_id>
 ```
 
 | 场景 | 操作 |
@@ -331,6 +333,8 @@ yunxiao codeup mr comments <repo_id> <local_id>
 | "有哪些待审查的 MR" | `codeup mr list --state opened` |
 | "提交一个 MR/PR" | `codeup mr create <repo_id> --title ... --source ... --target ...` |
 | "审查者对 MR #5 说了什么" | `codeup mr comments <repo_id> 5` |
+| "合并 MR #5" | `codeup mr merge <repo_id> 5` |
+| "本地 agent 审核 MR #5" | `codeup mr review <repo_id> 5` |
 
 注意：
 
@@ -340,6 +344,8 @@ yunxiao codeup mr comments <repo_id> <local_id>
 - 多行 MR 描述用 `--desc-file`，避免 shell 解析破坏 Markdown。
 - `--reviewer` 和 `--workitem` 可重复传，也可用逗号分隔。
 - `--ai-review` 会传 `triggerAIReviewRun=true`。
+- `codeup mr merge` 默认 `mergeType=no-fast-forward` 且不删除源分支；只有传 `--remove-source-branch` 才删除源分支。
+- `codeup mr review` 返回 MR 详情、版本、全局/行内评论和 compare diff，供本地 agent 审核。
 - `codeup file get` 返回 base64 编码内容。
 
 ## 工作项内容模板与规范

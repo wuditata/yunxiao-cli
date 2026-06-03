@@ -225,10 +225,57 @@ class CodeupService:
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         api = self._codeup_api(profile)
-        comments = api.list_change_request_comments(profile.org, repo_id, local_id)
+        comments = self._list_all_mr_comments(api, profile.org, repo_id, local_id)
         return {
             "comments": comments,
             "total": len(comments),
+        }, self._profile_dict(profile)
+
+    def merge_mr(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        local_id: str,
+        merge_type: str = "no-fast-forward",
+        merge_message: str | None = None,
+        remove_source_branch: bool = False,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        mr = api.merge_change_request(
+            profile.org,
+            repo_id,
+            local_id,
+            merge_type=merge_type,
+            merge_message=merge_message,
+            remove_source_branch=remove_source_branch,
+        )
+        return {"changeRequest": mr}, self._profile_dict(profile)
+
+    def get_mr_review_context(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        local_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        mr = api.get_change_request(profile.org, repo_id, local_id)
+        patch_sets = api.list_change_request_patch_sets(profile.org, repo_id, local_id)
+        comments = self._list_all_mr_comments(api, profile.org, repo_id, local_id)
+        compare = api.compare(
+            profile.org,
+            repo_id,
+            from_ref=self._mr_branch(mr, "targetBranch", "target_branch"),
+            to_ref=self._mr_branch(mr, "sourceBranch", "source_branch"),
+        )
+        return {
+            "changeRequest": mr,
+            "patchSets": patch_sets,
+            "comments": comments,
+            "compare": compare,
         }, self._profile_dict(profile)
 
     # ── 内部 ──────────────────────────────────────────
@@ -236,6 +283,33 @@ class CodeupService:
     def _codeup_api(self, profile) -> CodeupAPI:
         account = self.store.get_account(profile.account)
         return CodeupAPI(token=account.token)
+
+    @staticmethod
+    def _list_all_mr_comments(
+        api: CodeupAPI,
+        org_id: str,
+        repo_id: str,
+        local_id: str,
+    ) -> list[dict]:
+        comments: list[dict] = []
+        for comment_type in ("GLOBAL_COMMENT", "INLINE_COMMENT"):
+            comments.extend(
+                api.list_change_request_comments(
+                    org_id,
+                    repo_id,
+                    local_id,
+                    comment_type=comment_type,
+                )
+            )
+        return comments
+
+    @staticmethod
+    def _mr_branch(change_request: dict[str, Any], *keys: str) -> str:
+        for key in keys:
+            value = change_request.get(key)
+            if value:
+                return str(value)
+        raise CliError("MR 缺少源分支或目标分支，无法生成 review context")
 
     @staticmethod
     def _profile_dict(profile) -> dict[str, Any]:

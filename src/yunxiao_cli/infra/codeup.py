@@ -166,7 +166,7 @@ class CodeupAPI(BaseAPI):
     ) -> dict:
         encoded = self._encode_repo_id(repo_id)
         return self.get(
-            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/diffs/compare",
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/compares",
             params={"from": from_ref, "to": to_ref},
         )
 
@@ -205,6 +205,15 @@ class CodeupAPI(BaseAPI):
         return self.get(
             f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}"
         )
+
+    def list_change_request_patch_sets(self, org_id: str, repo_id: str, local_id: str) -> list[dict]:
+        encoded = self._encode_repo_id(repo_id)
+        items = self.get(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/diffs/patches"
+        )
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
 
     def create_change_request(
         self,
@@ -250,27 +259,52 @@ class CodeupAPI(BaseAPI):
             data=payload,
         )
 
+    def merge_change_request(
+        self,
+        org_id: str,
+        repo_id: str,
+        local_id: str,
+        *,
+        merge_type: str = "no-fast-forward",
+        merge_message: str | None = None,
+        remove_source_branch: bool = False,
+    ) -> dict:
+        encoded = self._encode_repo_id(repo_id)
+        payload: dict[str, Any] = {
+            "mergeType": merge_type,
+            "removeSourceBranch": remove_source_branch,
+        }
+        if merge_message is not None:
+            payload["mergeMessage"] = merge_message
+        return self.post(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/merge",
+            data=payload,
+        )
+
     def list_change_request_comments(
         self,
         org_id: str,
         repo_id: str,
         local_id: str,
         *,
-        comment_type: str | None = None,
-        state: str | None = None,
-        resolved: str | None = None,
+        patch_set_biz_ids: list[str] | None = None,
+        comment_type: str = "GLOBAL_COMMENT",
+        state: str = "OPENED",
+        resolved: bool = False,
+        file_path: str | None = None,
     ) -> list[dict]:
         encoded = self._encode_repo_id(repo_id)
-        params: dict[str, Any] = {}
-        if comment_type:
-            params["commentType"] = comment_type
-        if state:
-            params["state"] = state
-        if resolved:
-            params["resolved"] = resolved
-        items = self.get(
-            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/comments",
-            params=params,
+        payload: dict[str, Any] = {
+            "patchSetBizIds": patch_set_biz_ids or [],
+            "commentType": comment_type,
+            "state": state,
+            "resolved": resolved,
+        }
+        if file_path:
+            payload["filePath"] = file_path
+        items = self.post(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/comments/list",
+            data=payload,
         )
         if isinstance(items, list):
             return items
