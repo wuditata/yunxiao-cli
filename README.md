@@ -271,7 +271,7 @@ yunxiao workitem attachment get 1001 --profile pm-dev --file file-1
 - 已成功上传的 `uploaded_attachments`
 - 当前失败的 `failed_attachment`
 
-## 知识库下载
+## Thoughts 知识库下载
 
 知识库下载走云效 Thoughts 的浏览器态能力，不依赖 OpenAPI token，而是依赖浏览器 Cookie。
 
@@ -292,17 +292,17 @@ playwright install chromium
 
 ```bash
 # 直接传 Cookie
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie "<your_cookie>"
 
 # 传浏览器导出的 Cookie JSON 文件
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie-file ./edge-cookies.json
 
 # 从 Edge 导入 Cookie
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --browser edge \
   --thread 3 \

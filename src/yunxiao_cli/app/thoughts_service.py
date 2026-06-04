@@ -782,7 +782,7 @@ class ThoughtsDownloader:
         return documents
 
 
-class ThoughtsKnowledgeService:
+class ThoughtsService:
     def download(
         self,
         *,

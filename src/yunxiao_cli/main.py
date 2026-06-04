@@ -9,8 +9,7 @@ from .app.comment_service import CommentService
 from .app.context_service import ContextService
 from .app.codeup_service import CodeupService
 from .app.errors import CliError
-from .app.knowledge_service import KnowledgeService
-from .app.thoughts_service import ThoughtsKnowledgeService
+from .app.thoughts_service import ThoughtsService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
 from .app.project_service import ProjectService
@@ -34,7 +33,6 @@ def _services() -> tuple[
     CommentService,
     RelationService,
     SprintService,
-    KnowledgeService,
     CodeupService,
 ]:
     store = Store(root=CliConfig.data_root())
@@ -52,7 +50,6 @@ def _services() -> tuple[
     comment_service = CommentService(store=store, profile_service=profile_service)
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
     sprint_service = SprintService(store=store, profile_service=profile_service)
-    knowledge_service = KnowledgeService(store=store, profile_service=profile_service, meta_service=meta_service)
     codeup_service = CodeupService(store=store, profile_service=profile_service)
     return (
         store,
@@ -65,7 +62,6 @@ def _services() -> tuple[
         comment_service,
         relation_service,
         sprint_service,
-        knowledge_service,
         codeup_service,
     )
 
@@ -106,6 +102,9 @@ def _print_error(error: Exception, *, status_code=None, response=None):
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not getattr(args, "_runs_command", False):
+        getattr(args, "_help_parser", parser).print_help()
+        return 0
     try:
         (
             store,
@@ -118,7 +117,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             comment_service,
             relation_service,
             sprint_service,
-            knowledge_service,
             codeup_service,
         ) = _services()
         if args.command == "login" and args.login_command == "token":
@@ -369,24 +367,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
-        if args.command == "knowledge" and args.knowledge_command == "context":
-            data, profile = knowledge_service.context(
-                profile_name=args.profile,
-                workitem_id=args.workitem_id,
-                depth=args.depth,
-            )
-            _print_success(data=data, profile=profile)
-            return 0
-        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "project-summary":
-            data, profile = knowledge_service.project_summary(
-                profile_name=args.profile,
-                project=getattr(args, "project", None) or project_context.project,
-            )
-            _print_success(data=data, profile=profile)
-            return 0
         if args.command == "thoughts" and getattr(args, "thoughts_command", None) == "download":
-            thoughts_knowledge_service = ThoughtsKnowledgeService()
-            data = thoughts_knowledge_service.download(
+            thoughts_service = ThoughtsService()
+            data = thoughts_service.download(
                 url=args.url,
                 output_dir=args.output,
                 cookie=args.cookie,
@@ -534,7 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 _print_success(data=data, profile=profile)
                 return 0
-        parser.print_help()
+        getattr(args, "_help_parser", parser).print_help()
         return 0
     except CliError as error:
         _print_error(error, response=getattr(error, "response", None))

@@ -8,9 +8,9 @@ from tests import run_cli, run_cli_json, run_cli_main
 WORKSPACE_URL = "https://thoughts.aliyun.com/workspaces/ws-123/overview"
 
 
-class KnowledgeCommandsTest(unittest.TestCase):
-    def test_knowledge_download_help_mentions_auth_options(self):
-        code, output = run_cli(["knowledge", "download", "--help"])
+class ThoughtsCommandsTest(unittest.TestCase):
+    def test_thoughts_download_help_mentions_auth_options(self):
+        code, output = run_cli(["thoughts", "download", "--help"])
         self.assertEqual(0, code)
         self.assertIn("--cookie", output)
         self.assertIn("--cookie-file", output)
@@ -18,8 +18,8 @@ class KnowledgeCommandsTest(unittest.TestCase):
         self.assertIn("--thread", output)
         self.assertIn("工作区概览 URL", output)
 
-    def test_knowledge_download_uses_explicit_cookie(self):
-        import yunxiao_cli.app.knowledge_service as knowledge_service
+    def test_thoughts_download_uses_explicit_cookie(self):
+        import yunxiao_cli.app.thoughts_service as thoughts_service
 
         calls = {"cookies": [], "downloads": [], "browser": []}
 
@@ -36,14 +36,14 @@ class KnowledgeCommandsTest(unittest.TestCase):
                     "failures": [],
                 }
 
-        original_downloader = knowledge_service.ThoughtsDownloader
-        original_loader = knowledge_service.load_browser_cookie_string
-        knowledge_service.ThoughtsDownloader = FakeDownloader
-        knowledge_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser)
+        original_downloader = thoughts_service.ThoughtsDownloader
+        original_loader = thoughts_service.load_browser_cookie_string
+        thoughts_service.ThoughtsDownloader = FakeDownloader
+        thoughts_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser)
         try:
             result = run_cli_json(
                 [
-                    "knowledge",
+                    "thoughts",
                     "download",
                     "--url",
                     WORKSPACE_URL,
@@ -52,8 +52,8 @@ class KnowledgeCommandsTest(unittest.TestCase):
                 ]
             )
         finally:
-            knowledge_service.ThoughtsDownloader = original_downloader
-            knowledge_service.load_browser_cookie_string = original_loader
+            thoughts_service.ThoughtsDownloader = original_downloader
+            thoughts_service.load_browser_cookie_string = original_loader
 
         self.assertEqual([], calls["browser"])
         self.assertEqual(["a=1; b=2"], calls["cookies"])
@@ -61,8 +61,8 @@ class KnowledgeCommandsTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual("ws-123", result["data"]["workspace"]["id"])
 
-    def test_knowledge_download_imports_browser_cookie(self):
-        import yunxiao_cli.app.knowledge_service as knowledge_service
+    def test_thoughts_download_imports_browser_cookie(self):
+        import yunxiao_cli.app.thoughts_service as thoughts_service
 
         calls = {"cookies": [], "downloads": [], "browser": []}
 
@@ -79,15 +79,15 @@ class KnowledgeCommandsTest(unittest.TestCase):
                     "failures": [],
                 }
 
-        original_downloader = knowledge_service.ThoughtsDownloader
-        original_loader = knowledge_service.load_browser_cookie_string
-        knowledge_service.ThoughtsDownloader = FakeDownloader
-        knowledge_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser) or "c=3; d=4"
+        original_downloader = thoughts_service.ThoughtsDownloader
+        original_loader = thoughts_service.load_browser_cookie_string
+        thoughts_service.ThoughtsDownloader = FakeDownloader
+        thoughts_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser) or "c=3; d=4"
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 result = run_cli_json(
                     [
-                        "knowledge",
+                        "thoughts",
                         "download",
                         "--url",
                         WORKSPACE_URL,
@@ -98,8 +98,8 @@ class KnowledgeCommandsTest(unittest.TestCase):
                     ]
                 )
         finally:
-            knowledge_service.ThoughtsDownloader = original_downloader
-            knowledge_service.load_browser_cookie_string = original_loader
+            thoughts_service.ThoughtsDownloader = original_downloader
+            thoughts_service.load_browser_cookie_string = original_loader
 
         self.assertEqual(["edge"], calls["browser"])
         self.assertEqual(["c=3; d=4"], calls["cookies"])
@@ -107,8 +107,8 @@ class KnowledgeCommandsTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual("知识库", result["data"]["workspace"]["name"])
 
-    def test_knowledge_download_passes_custom_thread(self):
-        import yunxiao_cli.app.knowledge_service as knowledge_service
+    def test_thoughts_download_passes_custom_thread(self):
+        import yunxiao_cli.app.thoughts_service as thoughts_service
 
         calls = {"downloads": []}
 
@@ -125,12 +125,12 @@ class KnowledgeCommandsTest(unittest.TestCase):
                     "failures": [],
                 }
 
-        original_downloader = knowledge_service.ThoughtsDownloader
-        knowledge_service.ThoughtsDownloader = FakeDownloader
+        original_downloader = thoughts_service.ThoughtsDownloader
+        thoughts_service.ThoughtsDownloader = FakeDownloader
         try:
             result = run_cli_json(
                 [
-                    "knowledge",
+                    "thoughts",
                     "download",
                     "--url",
                     WORKSPACE_URL,
@@ -141,15 +141,15 @@ class KnowledgeCommandsTest(unittest.TestCase):
                 ]
             )
         finally:
-            knowledge_service.ThoughtsDownloader = original_downloader
+            thoughts_service.ThoughtsDownloader = original_downloader
 
         self.assertEqual([{"url": WORKSPACE_URL, "output_dir": None, "concurrency": 5}], calls["downloads"])
         self.assertTrue(result["success"])
 
-    def test_knowledge_download_rejects_mixed_auth_inputs(self):
+    def test_thoughts_download_rejects_mixed_auth_inputs(self):
         code, output = run_cli_main(
             [
-                "knowledge",
+                "thoughts",
                 "download",
                 "--url",
                 WORKSPACE_URL,

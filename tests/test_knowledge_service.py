@@ -4,7 +4,7 @@ from pathlib import Path
 
 import requests
 
-from yunxiao_cli.app.knowledge_service import ThoughtsAPI, ThoughtsDownloader, ThoughtsMarkdownRenderer
+from yunxiao_cli.app.thoughts_service import ThoughtsAPI, ThoughtsDownloader, ThoughtsMarkdownRenderer
 from yunxiao_cli.app.errors import CliError
 
 
