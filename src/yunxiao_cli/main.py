@@ -9,6 +9,7 @@ from .app.comment_service import CommentService
 from .app.context_service import ContextService
 from .app.codeup_service import CodeupService
 from .app.errors import CliError
+from .app.flow_service import FlowService
 from .app.thoughts_service import ThoughtsService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
@@ -34,6 +35,7 @@ def _services() -> tuple[
     RelationService,
     SprintService,
     CodeupService,
+    FlowService,
 ]:
     store = Store(root=CliConfig.data_root())
     context_service = ContextService(store=store)
@@ -51,6 +53,7 @@ def _services() -> tuple[
     relation_service = RelationService(store=store, profile_service=profile_service, meta_service=meta_service)
     sprint_service = SprintService(store=store, profile_service=profile_service)
     codeup_service = CodeupService(store=store, profile_service=profile_service)
+    flow_service = FlowService(store=store, profile_service=profile_service)
     return (
         store,
         context_service,
@@ -63,6 +66,7 @@ def _services() -> tuple[
         relation_service,
         sprint_service,
         codeup_service,
+        flow_service,
     )
 
 
@@ -118,6 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             relation_service,
             sprint_service,
             codeup_service,
+            flow_service,
         ) = _services()
         if args.command == "login" and args.login_command == "token":
             account, organizations, projects, warnings = AuthService(store=store).login_token(
@@ -379,6 +384,59 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data)
             return 0
+        if args.command == "flow" and getattr(args, "flow_command", None) == "pipeline":
+            if getattr(args, "flow_pipeline_command", None) == "list":
+                data, profile = flow_service.list_pipelines(
+                    profile_name=args.profile,
+                    search=args.search,
+                    status=args.status,
+                    page=args.page,
+                    per_page=args.per_page,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "flow_pipeline_command", None) == "get":
+                data, profile = flow_service.get_pipeline(
+                    profile_name=args.profile,
+                    pipeline_id=args.pipeline_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "flow" and getattr(args, "flow_command", None) == "run":
+            if getattr(args, "flow_run_command", None) == "create":
+                data, profile = flow_service.create_run(
+                    profile_name=args.profile,
+                    pipeline_id=args.pipeline_id,
+                    params=args.params,
+                    params_file=args.params_file,
+                    param_pairs=args.param,
+                    branch=args.branch,
+                    tag=args.tag,
+                    branches=args.branches,
+                    branch_mode=args.branch_mode,
+                    repositories=args.repositories,
+                    repo_branch_pairs=args.repo_branch,
+                    repo_tag_pairs=args.repo_tag,
+                    env_pairs=args.env,
+                    pipeline_artifact_pairs=args.pipeline_artifact,
+                    acr_artifact_pairs=args.acr_artifact,
+                    package_artifact_pairs=args.package_artifact,
+                    release_branch=args.release_branch,
+                    create_release_branch=args.create_release_branch,
+                    comment=args.comment,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+        if args.command == "flow" and getattr(args, "flow_command", None) == "job":
+            if getattr(args, "flow_job_command", None) == "start":
+                data, profile = flow_service.start_job(
+                    profile_name=args.profile,
+                    pipeline_id=args.pipeline_id,
+                    pipeline_run_id=args.pipeline_run_id,
+                    job_id=args.job_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
         # ── Codeup 路由 ──────────────────────────────────────
         if args.command == "codeup" and getattr(args, "codeup_command", None) == "repo":
             if getattr(args, "codeup_repo_command", None) == "list":

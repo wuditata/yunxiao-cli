@@ -6,7 +6,7 @@ description: >
 triggers:
   - pattern: "#[A-Za-z]+-\\d+"
     description: "Yunxiao workitem serial number, e.g. #REQ-42, #BUG-1234, #TASK-7"
-  - keywords: ["云效", "yunxiao", "工作项", "workitem", "迭代", "sprint", "codeup", "合并请求", "MR"]
+  - keywords: ["云效", "yunxiao", "工作项", "workitem", "迭代", "sprint", "codeup", "合并请求", "MR", "flow", "流水线"]
 ---
 
 # Yunxiao Workflow
@@ -28,7 +28,7 @@ triggers:
 | `#前缀-数字` | `#REQ-42`、`#BUG-1234`、`#TASK-7` | 云效工作项流水号 |
 | `看一下 #XXX-数字` | "看一下 #FE-128 的进展" | 查询工作项详情 |
 | `处理 #XXX-数字` | "处理一下 #BUG-99" | 流转工作项状态 |
-| 提到"云效/yunxiao/工作项/迭代/sprint/codeup/MR" | "当前迭代有什么任务" | 云效相关操作 |
+| 提到"云效/yunxiao/工作项/迭代/sprint/codeup/MR/flow/流水线" | "当前迭代有什么任务" | 云效相关操作 |
 
 **流水号解析规则：**
 
@@ -120,6 +120,22 @@ yunxiao meta reload --profile <profile>
 yunxiao meta types --profile <profile>
 yunxiao project list --profile <profile>
 ```
+
+Flow 流水线：
+
+```bash
+yunxiao flow pipeline list --search sfe --profile <profile>
+yunxiao flow pipeline get <pipeline_id> --profile <profile>
+yunxiao flow run create <pipeline_id> --branch main --profile <profile>
+yunxiao flow run create <pipeline_id> --tag v1.0.0 --profile <profile>
+yunxiao flow run create <pipeline_id> --env ENV=prod --param debug=true --profile <profile>
+yunxiao flow run create <pipeline_id> \
+  --params '{"runningBranchs":{"https://codeup.aliyun.com/org/repo.git":"main"}}' \
+  --profile <profile>
+yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id> --profile <profile>
+```
+
+`flow pipeline list/get` 用于发现可部署应用和读取代码源、配置等详情。`flow run create` 支持原始 `--params` / `--params-file`，也支持 `--branch`、`--tag`、`--repo-branch`、`--env`、`--param` 等简化参数。只传 `--branch` 或 `--tag` 时，CLI 会读取流水线代码源并生成 `runningBranchs` / `runningTags`。官方 `flow job start` 不接受请求体；需要运行参数时启动新的 run。
 
 工作项：
 

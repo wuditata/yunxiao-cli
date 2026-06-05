@@ -12,6 +12,7 @@ HELP_DETAILS = {
           yunxiao context init --profile <name> --assignee <user> --project <project_id>
           yunxiao workitem mine --category all
           yunxiao codeup mr list --repo <repo_id>
+          yunxiao flow run create <pipeline_id> --branch main
         """,
     ),
     "yunxiao login": (
@@ -405,6 +406,93 @@ HELP_DETAILS = {
 
         说明:
           --cookie、--cookie-file、--browser 三选一。
+        """,
+    ),
+    "yunxiao flow": (
+        "Flow 流水线操作。覆盖流水线查询、运行启动和既有任务手动启动。",
+        """
+        子命令:
+          pipeline    流水线查询
+          run    流水线运行操作
+          job    流水线任务操作
+
+        示例:
+          yunxiao flow pipeline list --search sfe
+          yunxiao flow pipeline get <pipeline_id>
+          yunxiao flow run create <pipeline_id> --branch main
+          yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
+        """,
+    ),
+    "yunxiao flow pipeline": (
+        "Flow 流水线查询。用于发现可部署应用和读取流水线详情。",
+        """
+        子命令:
+          list    列出流水线
+          get     查看流水线详情
+
+        示例:
+          yunxiao flow pipeline list --search sfe --profile xinmai
+          yunxiao flow pipeline get 4921657 --profile xinmai
+        """,
+    ),
+    "yunxiao flow pipeline list": (
+        "列出组织下可见 Flow 流水线，可按流水线名称关键字搜索。",
+        """
+        示例:
+          yunxiao flow pipeline list --search sfe --profile xinmai
+          yunxiao flow pipeline list --status SUCCESS,RUNNING --page 1 --per-page 20
+        """,
+    ),
+    "yunxiao flow pipeline get": (
+        "查看指定 Flow 流水线详情，包括代码源、配置和标签等接口返回内容。",
+        """
+        示例:
+          yunxiao flow pipeline get 4921657 --profile xinmai
+        """,
+    ),
+    "yunxiao flow run": (
+        "流水线运行操作。当前支持创建一次新的流水线运行。",
+        """
+        子命令:
+          create    创建流水线运行
+
+        示例:
+          yunxiao flow run create <pipeline_id> --branch main
+          yunxiao flow run create <pipeline_id> --params '{"branchModeBranchs":["main"]}'
+        """,
+    ),
+    "yunxiao flow run create": (
+        "创建流水线运行。支持原始 params，也支持分支、标签、环境变量和制品等简化参数。",
+        """
+        示例:
+          yunxiao flow run create <pipeline_id> --branch main
+          yunxiao flow run create <pipeline_id> --env ENV=prod --param debug=true
+          yunxiao flow run create <pipeline_id> --repo-branch https://codeup.aliyun.com/org/repo.git=release/1.0
+          yunxiao flow run create <pipeline_id> --params '{"runningBranchs":{"https://codeup.aliyun.com/org/repo.git":"main"}}'
+
+        说明:
+          --params / --params-file 传原始 JSON 对象，并优先于所有简化参数。
+          只传 --branch 或 --tag 时，会读取流水线代码源并生成 runningBranchs / runningTags。
+        """,
+    ),
+    "yunxiao flow job": (
+        "流水线任务操作。用于操作已存在运行实例里的任务。",
+        """
+        子命令:
+          start    手动启动任务
+
+        示例:
+          yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
+        """,
+    ),
+    "yunxiao flow job start": (
+        "手动启动指定流水线运行实例中的任务。",
+        """
+        示例:
+          yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
+
+        说明:
+          官方 job start 接口不接受请求体；需要运行参数时使用 flow run create 的 --params 或简化参数。
         """,
     ),
     "yunxiao codeup": (
@@ -928,6 +1016,72 @@ def build_parser() -> argparse.ArgumentParser:
         description="根据工作区概览 URL 下载整个 Thoughts 知识库，保持目录结构并导出为 Markdown。",
     )
     _add_thoughts_download_arguments(thoughts_download_parser)
+
+    flow_parser = subparsers.add_parser("flow", help="Flow 流水线操作")
+    flow_subparsers = _add_subparsers(flow_parser, dest="flow_command")
+
+    flow_pipeline_parser = flow_subparsers.add_parser("pipeline", help="流水线查询")
+    flow_pipeline_subparsers = _add_subparsers(flow_pipeline_parser, dest="flow_pipeline_command")
+    flow_pipeline_list = flow_pipeline_subparsers.add_parser(
+        "list",
+        help="列出流水线",
+        description="列出组织下可见 Flow 流水线。",
+    )
+    flow_pipeline_list.add_argument("--profile", help="profile 名称")
+    flow_pipeline_list.add_argument("--search", help="按流水线名称关键字搜索")
+    flow_pipeline_list.add_argument("--status", help="状态列表，多个用逗号分隔")
+    flow_pipeline_list.add_argument("--page", type=int, default=1, help="页码，默认 1")
+    flow_pipeline_list.add_argument("--per-page", type=int, default=20, help="每页数量，默认 20")
+    flow_pipeline_get = flow_pipeline_subparsers.add_parser(
+        "get",
+        help="查看流水线详情",
+        description="查看指定 Flow 流水线详情。",
+    )
+    flow_pipeline_get.add_argument("pipeline_id", help="流水线 ID")
+    flow_pipeline_get.add_argument("--profile", help="profile 名称")
+
+    flow_run_parser = flow_subparsers.add_parser("run", help="流水线运行操作")
+    flow_run_subparsers = _add_subparsers(flow_run_parser, dest="flow_run_command")
+    flow_run_create = flow_run_subparsers.add_parser(
+        "create",
+        help="创建流水线运行",
+        description="创建流水线运行，支持运行参数。",
+    )
+    flow_run_create.add_argument("pipeline_id", help="流水线 ID")
+    flow_run_create.add_argument("--profile", help="profile 名称")
+    flow_run_create.add_argument("--params", help="原始运行参数 JSON 对象字符串，优先于所有简化参数")
+    flow_run_create.add_argument("--params-file", help="从文件读取原始运行参数 JSON 对象")
+    flow_run_create.add_argument(
+        "--param",
+        action="append",
+        help="运行参数 key=value，可重复；value 会按 JSON 解析，解析失败按字符串处理",
+    )
+    flow_run_create.add_argument("--branch", help="使用指定分支运行流水线")
+    flow_run_create.add_argument("--tag", help="使用指定标签运行流水线")
+    flow_run_create.add_argument("--branches", action="append", help="分支模式分支，可重复或用逗号分隔")
+    flow_run_create.add_argument("--branch-mode", action="store_true", help="启用分支模式；未传 --branches 时会使用 --branch")
+    flow_run_create.add_argument("--repo", dest="repositories", action="append", help="仓库 URL，可重复或用逗号分隔")
+    flow_run_create.add_argument("--repo-branch", action="append", help="指定仓库分支，格式 <repo_url>=<branch>")
+    flow_run_create.add_argument("--repo-tag", action="append", help="指定仓库标签，格式 <repo_url>=<tag>")
+    flow_run_create.add_argument("--env", action="append", help="环境变量，格式 KEY=VALUE，可重复")
+    flow_run_create.add_argument("--pipeline-artifact", action="append", help="流水线制品，格式 KEY=VALUE，可重复")
+    flow_run_create.add_argument("--acr-artifact", action="append", help="ACR 制品，格式 KEY=VALUE，可重复")
+    flow_run_create.add_argument("--package-artifact", action="append", help="Packages 制品，格式 KEY=VALUE，可重复")
+    flow_run_create.add_argument("--release-branch", help="Release 分支名")
+    flow_run_create.add_argument("--create-release-branch", action="store_true", help="运行时创建 Release 分支")
+    flow_run_create.add_argument("--comment", help="本次运行备注")
+
+    flow_job_parser = flow_subparsers.add_parser("job", help="流水线任务操作")
+    flow_job_subparsers = _add_subparsers(flow_job_parser, dest="flow_job_command")
+    flow_job_start = flow_job_subparsers.add_parser(
+        "start",
+        help="手动启动任务",
+        description="手动启动指定流水线运行实例中的任务。",
+    )
+    flow_job_start.add_argument("pipeline_id", help="流水线 ID")
+    flow_job_start.add_argument("pipeline_run_id", help="流水线运行实例 ID")
+    flow_job_start.add_argument("job_id", help="流水线运行任务 ID")
+    flow_job_start.add_argument("--profile", help="profile 名称")
 
     codeup_parser = subparsers.add_parser("codeup", help="代码管理操作")
     codeup_subparsers = _add_subparsers(codeup_parser, dest="codeup_command")
