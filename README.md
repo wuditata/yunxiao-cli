@@ -9,6 +9,7 @@
 - 支持多 profile：同一台机器可同时管理多个账号、组织、项目上下文
 - 覆盖工作项主流程：创建、查询、搜索、更新、状态流转、评论、父子关联
 - 支持附件处理：可先对已有工单上传附件，也可在 `create` 时一并处理
+- 支持 Flow 流水线运行启动和既有任务手动启动
 - 字段输入友好：支持字段名或字段 ID，适合人手执行和自动化脚本
 - 输出统一为 JSON：天然适合 shell、CI、Agent、编辑器插件集成
 - 自带 Skill 集成：可和仓库内 `skills/yunxiao-workflow` 配套使用
@@ -31,6 +32,9 @@ yunxiao workitem attachment upload 1001 --path ./hotfix.patch
 # 状态流转时一次补齐必填字段
 yunxiao workitem transition 1001 --to "处理中" \
   --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
+
+# 用指定分支启动 Flow 流水线
+yunxiao flow run create <pipeline_id> --branch main
 ```
 
 ## 安装
@@ -271,7 +275,43 @@ yunxiao workitem attachment get 1001 --profile pm-dev --file file-1
 - 已成功上传的 `uploaded_attachments`
 - 当前失败的 `failed_attachment`
 
-## 知识库下载
+## Flow 流水线
+
+查询流水线：
+
+```bash
+yunxiao flow pipeline list --search sfe --profile xinmai
+yunxiao flow pipeline get 4921657 --profile xinmai
+```
+
+启动整条流水线：
+
+```bash
+yunxiao flow run create <pipeline_id> --branch main
+yunxiao flow run create <pipeline_id> --tag v1.0.0
+yunxiao flow run create <pipeline_id> --env ENV=prod --param debug=true
+yunxiao flow run create <pipeline_id> \
+  --repo-branch https://codeup.aliyun.com/org/repo.git=release/1.0
+```
+
+复杂运行参数可直接传官方 `params` JSON 对象：
+
+```bash
+yunxiao flow run create <pipeline_id> \
+  --params '{"runningBranchs":{"https://codeup.aliyun.com/org/repo.git":"main"}}'
+```
+
+只传 `--branch` 或 `--tag` 时，CLI 会读取流水线代码源并生成 `runningBranchs` / `runningTags`。如果任务参数不在简化参数覆盖范围内，用 `--param key=value` 或 `--params`。
+
+手动启动既有运行实例中的任务：
+
+```bash
+yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
+```
+
+官方 job start 接口不接受请求体；需要运行参数时用 `flow run create`。
+
+## Thoughts 知识库下载
 
 知识库下载走云效 Thoughts 的浏览器态能力，不依赖 OpenAPI token，而是依赖浏览器 Cookie。
 
@@ -292,17 +332,17 @@ playwright install chromium
 
 ```bash
 # 直接传 Cookie
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie "<your_cookie>"
 
 # 传浏览器导出的 Cookie JSON 文件
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --cookie-file ./edge-cookies.json
 
 # 从 Edge 导入 Cookie
-yunxiao knowledge download \
+yunxiao thoughts download \
   --url https://thoughts.aliyun.com/workspaces/<workspace_id>/overview \
   --browser edge \
   --thread 3 \
