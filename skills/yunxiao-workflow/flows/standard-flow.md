@@ -1,6 +1,8 @@
 # Standard Flow：标准研发流
 
-多 agent 协作的产品类需求（默认需求）完整研发流程。创建需求时打标签 `standard-flow`，各 agent 按状态 + 标签过滤自己的任务。
+多 agent 协作的产品类需求（默认需求）完整研发流程。各 agent 按 `--category Req` + 入态 `--status` 过滤自己的任务；项目里混有本流程之外的需求时，再加 `--keyword` 按标题关键词收窄。
+
+<!-- ponytail: CLI 的 create 不支持打标签（labels 需要标签 ID 解析），流程改用 category+status 过滤；如以后 create 支持 --tag，可恢复标签方案 -->
 
 查询约定：
 
@@ -49,8 +51,7 @@ yunxiao workitem transition <id> --profile <profile> --to "处理中" \
 yunxiao workitem create --profile <profile> \
   --category Req \
   --subject "[用户运营] 新增用户画像标签" \
-  --desc-file ./req.md \
-  --tag standard-flow
+  --desc-file ./req.md
 # 默认状态为：待处理
 ```
 
@@ -71,7 +72,7 @@ yunxiao workitem transition <id> --profile <profile> --to "待评审"
 
 ```bash
 yunxiao workitem search --profile <profile> \
-  --category Req --status "待评审" --tag standard-flow
+  --category Req --status "待评审"
 ```
 
 **步骤**：
@@ -104,7 +105,7 @@ yunxiao workitem transition <id> --profile <profile> --to "设计中"
 
 ```bash
 yunxiao workitem search --profile <profile> \
-  --category Req --status "设计中" --tag standard-flow
+  --category Req --status "设计中"
 ```
 
 **步骤**：
@@ -141,7 +142,7 @@ yunxiao workitem transition <req_id> --profile <profile> --to "设计完成"
 
 ```bash
 yunxiao workitem search --profile <profile> \
-  --category Req --status "设计完成" --tag standard-flow
+  --category Req --status "设计完成"
 ```
 
 **步骤**：
@@ -182,7 +183,7 @@ yunxiao workitem transition <req_id> --profile <profile> --to "开发完成"
 
 ```bash
 yunxiao workitem search --profile <profile> \
-  --category Req --status "开发完成" --tag standard-flow
+  --category Req --status "开发完成"
 ```
 
 **步骤**：

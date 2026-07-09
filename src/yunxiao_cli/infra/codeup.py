@@ -310,6 +310,43 @@ class CodeupAPI(BaseAPI):
             return items
         return items.get("result") or items.get("items") or []
 
+    def create_change_request_comment(
+        self,
+        org_id: str,
+        repo_id: str,
+        local_id: str,
+        *,
+        content: str,
+        comment_type: str = "GLOBAL_COMMENT",
+        patchset_biz_id: str,
+        draft: bool = False,
+        resolved: bool = False,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        from_patchset_biz_id: str | None = None,
+        to_patchset_biz_id: str | None = None,
+        parent_comment_biz_id: str | None = None,
+    ) -> dict:
+        encoded = self._encode_repo_id(repo_id)
+        payload: dict[str, Any] = {
+            "comment_type": comment_type,
+            "content": content,
+            "draft": draft,
+            "resolved": resolved,
+            "patchset_biz_id": patchset_biz_id,
+        }
+        if comment_type == "INLINE_COMMENT":
+            payload["file_path"] = file_path
+            payload["line_number"] = line_number
+            payload["from_patchset_biz_id"] = from_patchset_biz_id
+            payload["to_patchset_biz_id"] = to_patchset_biz_id
+        if parent_comment_biz_id:
+            payload["parent_comment_biz_id"] = parent_comment_biz_id
+        return self.post(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/comments",
+            data=payload,
+        )
+
     def _resolve_project_ids(
         self,
         org_id: str,

@@ -75,7 +75,11 @@ create_symlink() {
     fi
     rm -f "$target"
   elif [ -e "$target" ]; then
-    local backup="${target}.bak.$(date +%s)"
+    # 备份放进点前缀子目录，避免被各编辑器的 skill 扫描器当成一个新 skill
+    local backup_dir
+    backup_dir="$(dirname "$target")/.skill-backups"
+    mkdir -p "$backup_dir"
+    local backup="${backup_dir}/$(basename "$target").bak.$(date +%s)"
     mv "$target" "$backup"
     print_warning "[${context}] existed target moved to: ${backup}"
   fi

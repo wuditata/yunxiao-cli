@@ -8,10 +8,13 @@
 
 - 支持多 profile：同一台机器可同时管理多个账号、组织、项目上下文
 - 覆盖工作项主流程：创建、查询、搜索、更新、状态流转、评论、父子关联
+- 工作项命令直接接受流水号：`workitem get REQ-42`、`knowledge context BUG-7`
+- 知识聚合：`knowledge context` 一次拿全工作项详情、评论、附件、父项链、子项树
 - 支持附件处理：可先对已有工单上传附件，也可在 `create` 时一并处理
 - 支持 Flow 流水线运行启动和既有任务手动启动
+- Codeup 代码管理与 MR 全流程：仓库/分支/文件/提交/比较，MR 创建、评审上下文、全局/行内评论、合并
 - 字段输入友好：支持字段名或字段 ID，适合人手执行和自动化脚本
-- 输出统一为 JSON：天然适合 shell、CI、Agent、编辑器插件集成
+- 输出统一为 JSON 且强制 UTF-8：天然适合 shell、CI、Agent、编辑器插件集成
 - 自带 Skill 集成：可和仓库内 `skills/yunxiao-workflow` 配套使用
 - `workitem search` / `workitem mine` 默认返回摘要，`workitem get` 返回详情
 
@@ -115,7 +118,7 @@ yunxiao profile use <profile>
 yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
 ```
 
-如果项目里已经有 `.yunxiao.json`，后续常用命令可直接省略 `--profile`；创建和更新工单时也会优先使用其中的 `assignee`。
+如果项目里已经有 `.yunxiao.json`，后续常用命令可直接省略 `--profile`；创建工单时也会优先使用其中的 `assignee`（`update` 只在显式传 `--assigned-to` 时才修改负责人）。
 
 ## 项目结构
 
@@ -310,6 +313,47 @@ yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
 ```
 
 官方 job start 接口不接受请求体；需要运行参数时用 `flow run create`。
+
+## 知识聚合
+
+给 Agent 一次性喂全上下文，替代多条命令拼装：
+
+```bash
+# 单个工作项完整上下文：详情 + 评论 + 附件 + 父项链 + 子项树（支持流水号）
+yunxiao knowledge context 1001
+yunxiao knowledge context REQ-42 --depth 2
+
+# 项目全局概览：活跃迭代 + 各分类工作项统计
+yunxiao knowledge project-summary
+yunxiao knowledge project-summary --project <project_id>
+```
+
+`categoryStats` 按单页（100 条）统计，`capped=true` 表示该分类至少 100 条。
+
+## Codeup 代码管理与 MR
+
+```bash
+# 定位仓库
+yunxiao codeup repo list --search "frontend"
+
+# 创建 MR（关联工作项、可触发云效 AI 评审）
+yunxiao codeup mr create <repo_id> --title "feat: 支付超时重试" \
+  --source feature/pay-retry --target main \
+  --desc-file ./mr.md --workitem <workitem_id> --ai-review
+
+# 本地 agent 评审：一条命令拿 MR 详情 + 版本 + 已有评论 + 代码 diff
+yunxiao codeup mr review <repo_id> <local_id>
+
+# 发表评审意见：全局 / 行内 / 回复，版本 ID 自动解析
+yunxiao codeup mr comment <repo_id> <local_id> --content-file ./review.md
+yunxiao codeup mr comment <repo_id> <local_id> --file src/main.py --line 42 --content "这里会空指针"
+yunxiao codeup mr comment <repo_id> <local_id> --reply <comment_biz_id> --content "已修复" --resolved
+
+# 合并（默认 no-fast-forward、保留源分支）
+yunxiao codeup mr merge <repo_id> <local_id>
+```
+
+仓库/分支/文件/提交/比较等读操作见 `yunxiao codeup --help`。
 
 ## Thoughts 知识库下载
 

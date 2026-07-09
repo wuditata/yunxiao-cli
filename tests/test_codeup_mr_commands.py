@@ -329,5 +329,91 @@ class CodeupMrCommandsTest(unittest.TestCase):
         )
 
 
+    @patch("requests.request")
+    def test_codeup_mr_comment_global_resolves_latest_patchset(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if method == "GET" and url.endswith("/changeRequests/7/diffs/patches"):
+                return FakeResponse(
+                    [
+                        {"patchSetBizId": "ps-target", "relatedMergeItemType": "MERGE_TARGET", "versionNo": 1},
+                        {"patchSetBizId": "ps-src-1", "relatedMergeItemType": "MERGE_SOURCE", "versionNo": 1},
+                        {"patchSetBizId": "ps-src-2", "relatedMergeItemType": "MERGE_SOURCE", "versionNo": 2},
+                    ]
+                )
+            if method == "POST" and url.endswith("/changeRequests/7/comments"):
+                captured["json"] = kwargs["json"]
+                return FakeResponse({"comment_biz_id": "c-1", "content": kwargs["json"]["content"]})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    ["codeup", "mr", "comment", "2813489", "7", "--content", "整体 LGTM"]
+                )
+
+        self.assertTrue(result["success"])
+        payload = captured["json"]
+        self.assertEqual("GLOBAL_COMMENT", payload["comment_type"])
+        self.assertEqual("整体 LGTM", payload["content"])
+        self.assertEqual("ps-src-2", payload["patchset_biz_id"])
+        self.assertNotIn("file_path", payload)
+
+    @patch("requests.request")
+    def test_codeup_mr_comment_inline_sends_patchset_pair(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if method == "GET" and url.endswith("/changeRequests/7/diffs/patches"):
+                return FakeResponse(
+                    [
+                        {"patchSetBizId": "ps-target", "relatedMergeItemType": "MERGE_TARGET", "versionNo": 1},
+                        {"patchSetBizId": "ps-src-1", "relatedMergeItemType": "MERGE_SOURCE", "versionNo": 1},
+                    ]
+                )
+            if method == "POST" and url.endswith("/changeRequests/7/comments"):
+                captured["json"] = kwargs["json"]
+                return FakeResponse({"comment_biz_id": "c-2"})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    [
+                        "codeup", "mr", "comment", "2813489", "7",
+                        "--file", "src/main.py", "--line", "42",
+                        "--content", "这里会空指针",
+                    ]
+                )
+
+        self.assertTrue(result["success"])
+        payload = captured["json"]
+        self.assertEqual("INLINE_COMMENT", payload["comment_type"])
+        self.assertEqual("src/main.py", payload["file_path"])
+        self.assertEqual(42, payload["line_number"])
+        self.assertEqual("ps-target", payload["from_patchset_biz_id"])
+        self.assertEqual("ps-src-1", payload["to_patchset_biz_id"])
+
+    def test_codeup_mr_comment_inline_missing_line_fails_fast(self):
+        from tests import run_cli_main
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                code, output = run_cli_main(
+                    ["codeup", "mr", "comment", "2813489", "7", "--file", "src/main.py", "--content", "x"]
+                )
+
+        self.assertEqual(1, code)
+        self.assertIn("--line", output)
+
+
 if __name__ == "__main__":
     unittest.main()

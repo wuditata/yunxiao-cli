@@ -231,6 +231,65 @@ class CodeupService:
             "total": len(comments),
         }, self._profile_dict(profile)
 
+    def add_mr_comment(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        local_id: str,
+        content: str | None = None,
+        content_file: str | None = None,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        reply_to: str | None = None,
+        resolved: bool = False,
+        from_patchset: str | None = None,
+        to_patchset: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        text = self._load_description(content, content_file)
+        if not text:
+            raise CliError("评论内容为空：传 --content 或 --content-file")
+        inline = bool(file_path or line_number is not None)
+        if inline and (not file_path or line_number is None):
+            raise CliError("行内评论必须同时传 --file 和 --line")
+
+        # 全局评论挂最新合并源版本；行内评论 from=合并目标版本、to=最新合并源版本
+        if not to_patchset or (inline and not from_patchset):
+            source, target = self._latest_patchsets(api, profile.org, repo_id, local_id)
+            to_patchset = to_patchset or source
+            from_patchset = from_patchset or target
+        comment = api.create_change_request_comment(
+            profile.org,
+            repo_id,
+            local_id,
+            content=text,
+            comment_type="INLINE_COMMENT" if inline else "GLOBAL_COMMENT",
+            patchset_biz_id=to_patchset,
+            resolved=resolved,
+            file_path=file_path,
+            line_number=line_number,
+            from_patchset_biz_id=from_patchset,
+            to_patchset_biz_id=to_patchset,
+            parent_comment_biz_id=reply_to,
+        )
+        return {"comment": comment}, self._profile_dict(profile)
+
+    @staticmethod
+    def _latest_patchsets(api: CodeupAPI, org_id: str, repo_id: str, local_id: str) -> tuple[str, str]:
+        """返回 (最新合并源版本ID, 合并目标版本ID)。"""
+        patch_sets = api.list_change_request_patch_sets(org_id, repo_id, local_id)
+        sources = [p for p in patch_sets if p.get("relatedMergeItemType") == "MERGE_SOURCE"]
+        targets = [p for p in patch_sets if p.get("relatedMergeItemType") == "MERGE_TARGET"]
+        latest_source = max(sources, key=lambda p: p.get("versionNo") or 0, default=None)
+        target = targets[0] if targets else None
+        source_id = (latest_source or {}).get("patchSetBizId")
+        target_id = (target or {}).get("patchSetBizId")
+        if not source_id:
+            raise CliError("未找到合并源版本（MERGE_SOURCE patchset），可用 --to-patchset 显式指定")
+        return str(source_id), str(target_id) if target_id else str(source_id)
+
     def merge_mr(
         self,
         *,

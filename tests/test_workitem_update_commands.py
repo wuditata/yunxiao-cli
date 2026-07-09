@@ -308,5 +308,95 @@ class WorkitemUpdateCommandsTest(unittest.TestCase):
         self.assertEqual("MARKDOWN", captured["payload"]["formatType"])
 
 
+    @patch("requests.request")
+    def test_workitem_update_does_not_inherit_project_config_assignee(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "workitemType": {"id": "task-type"}})
+            if url.endswith("/workitems/1001") and method == "PUT":
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001"})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            project_root = Path(temp_dir) / "repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            (project_root / ".yunxiao.json").write_text(
+                json.dumps({"profile": "pm-dev", "assignee": "Alice", "project": "456"}),
+                encoding="utf-8",
+            )
+            current_dir = Path.cwd()
+            try:
+                os.chdir(project_root)
+                with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                    result = run_cli_json(
+                        ["workitem", "update", "1001", "--profile", "pm-dev", "--subject", "只改标题"]
+                    )
+            finally:
+                os.chdir(current_dir)
+
+        self.assertTrue(result["success"])
+        self.assertEqual("只改标题", captured["payload"]["subject"])
+        self.assertNotIn("assignedTo", captured["payload"])
+
+    @patch("requests.request")
+    def test_workitem_get_resolves_serial_number(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems:search") and method == "POST":
+                payload = kwargs["json"]
+                if payload.get("category") == "Task" and payload.get("page") == 1:
+                    return FakeResponse([{"id": "1001", "serialNumber": "TASK-7", "subject": "子任务"}])
+                return FakeResponse([])
+            if url.endswith("/workitems/1001/comments") and method == "GET":
+                return FakeResponse([])
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "subject": "子任务"})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["workitem", "get", "TASK-7", "--profile", "pm-dev"])
+
+        self.assertTrue(result["success"])
+        self.assertEqual("1001", result["data"]["workitem"]["id"])
+
+    @patch("requests.request")
+    def test_workitem_transition_resolves_serial_number(self, request_mock):
+        captured = {}
+
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems:search") and method == "POST":
+                payload = kwargs["json"]
+                if payload.get("category") == "Task" and payload.get("page") == 1:
+                    return FakeResponse([{"id": "1001", "serialNumber": "TASK-7", "subject": "子任务"}])
+                return FakeResponse([])
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "workitemType": {"id": "task-type"}})
+            if url.endswith("/workitems/1001") and method == "PUT":
+                captured["payload"] = kwargs["json"]
+                return FakeResponse({"id": "1001"})
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(
+                    ["workitem", "transition", "TASK-7", "--profile", "pm-dev", "--to", "功能开发"]
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("task-dev", captured["payload"]["status"])
+
+
 if __name__ == "__main__":
     unittest.main()

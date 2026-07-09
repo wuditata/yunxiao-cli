@@ -61,12 +61,12 @@ class CliHelpTest(unittest.TestCase):
         self.assertIn("attachment       管理工作项附件", output)
         self.assertNotIn("profile             管理 profile", output)
 
-    def test_root_help_exposes_thoughts_not_knowledge(self):
+    def test_root_help_exposes_thoughts_and_knowledge(self):
         code, output = run_cli(["--help"])
 
         self.assertEqual(0, code)
         self.assertIn("thoughts         云效 Thoughts 知识库文档操作", output)
-        self.assertNotIn("knowledge", output)
+        self.assertIn("knowledge        聚合工作项知识上下文", output)
 
     def test_bare_nested_group_command_prints_current_level_help(self):
         code, output = run_cli(["codeup", "repo"])
@@ -86,11 +86,13 @@ class CliHelpTest(unittest.TestCase):
         self.assertIn("示例:", output)
         self.assertIn("yunxiao codeup mr create <repo_id>", output)
 
-    def test_knowledge_command_is_not_registered(self):
+    def test_knowledge_command_is_registered(self):
         code, output = run_cli(["knowledge", "--help"])
 
-        self.assertEqual(2, code)
-        self.assertIn("invalid choice: 'knowledge'", output)
+        self.assertEqual(0, code)
+        self.assertIn("usage: yunxiao knowledge", output)
+        self.assertIn("context", output)
+        self.assertIn("project-summary", output)
 
 
 if __name__ == "__main__":

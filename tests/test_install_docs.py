@@ -18,12 +18,18 @@ class InstallDocsTest(unittest.TestCase):
         self.assertEqual("yunxiao_cli.main:main", scripts["yunxiao_cli"])
 
     def test_skill_doc_references_yunxiao_commands(self):
-        content = (ROOT / "skills" / "yunxiao-workflow" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("yunxiao workitem", content)
-        self.assertIn("yunxiao workitem attachment upload", content)
-        self.assertIn("--attachment", content)
-        self.assertIn("`workitem search` / `workitem mine` 默认返回摘要列表", content)
-        self.assertIn("需要详情时调用 `workitem get`", content)
+        skill_dir = ROOT / "skills" / "yunxiao-workflow"
+        skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        reference = (skill_dir / "references" / "commands.md").read_text(encoding="utf-8")
+        combined = skill + reference
+        self.assertIn("yunxiao workitem", skill)
+        self.assertIn("yunxiao workitem attachment upload", combined)
+        self.assertIn("--attachment", combined)
+        # 摘要 vs 详情契约与参考文件指引必须留在主 SKILL.md
+        self.assertIn("摘要", skill)
+        self.assertIn("knowledge context", skill)
+        self.assertIn("references/commands.md", skill)
+        self.assertIn("yunxiao codeup mr comment", skill)
 
     def test_install_script_mentions_yunxiao_cli_entrypoint(self):
         content = (ROOT / "install.sh").read_text(encoding="utf-8")
