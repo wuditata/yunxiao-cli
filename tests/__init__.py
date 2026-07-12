@@ -24,6 +24,7 @@ def run_cli(args: list[str]) -> tuple[int, str]:
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     return result.returncode, result.stdout + result.stderr

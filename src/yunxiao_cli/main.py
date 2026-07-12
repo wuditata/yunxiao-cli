@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Sequence
 
 from .app.attachment_service import AttachmentService
@@ -10,6 +11,7 @@ from .app.context_service import ContextService
 from .app.codeup_service import CodeupService
 from .app.errors import CliError
 from .app.flow_service import FlowService
+from .app.knowledge_service import KnowledgeService
 from .app.thoughts_service import ThoughtsService
 from .app.meta_service import MetaService
 from .app.profile_service import ProfileService
@@ -104,6 +106,11 @@ def _print_error(error: Exception, *, status_code=None, response=None):
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Windows 下管道/重定向默认用本地编码（GBK），中文 JSON 会乱码或直接编码报错；
+    # 统一强制 UTF-8，保证 Agent/CI 消费方拿到稳定字节流。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "_runs_command", False):
@@ -256,7 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 keyword=args.keyword,
                 tag=args.tag,
                 priority=args.priority,
-                assigned_to=getattr(args, "assigned_to", None) or project_context.assignee if getattr(args, "assigned_to", None) else None,
+                assigned_to=getattr(args, "assigned_to", None),
                 sprint=args.sprint,
                 created_after=args.created_after,
                 created_before=args.created_before,
@@ -275,7 +282,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 subject=args.subject,
                 desc=args.desc,
                 desc_file=args.desc_file,
-                assigned_to=project_context.assignee,
+                # 只透传显式 --assigned-to；不回填 .yunxiao.json 默认负责人，
+                # 否则改标题/描述会悄悄把工作项负责人改成 repo 默认人
+                assigned_to=getattr(args, "assigned_to", None),
                 status=args.status,
                 field_pairs=args.field,
                 field_json_pairs=args.field_json,
@@ -369,6 +378,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 project=getattr(args, "project", None) or project_context.project,
                 status=args.status,
                 name=getattr(args, "name", None),
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "context":
+            knowledge_service = KnowledgeService(
+                store=store,
+                profile_service=profile_service,
+                meta_service=meta_service,
+            )
+            workitem_id = workitem_service.resolve_workitem_id(
+                profile_name=args.profile,
+                ref=args.workitem_id,
+            )
+            data, profile = knowledge_service.context(
+                profile_name=args.profile,
+                workitem_id=workitem_id,
+                depth=args.depth,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "knowledge" and getattr(args, "knowledge_command", None) == "project-summary":
+            knowledge_service = KnowledgeService(
+                store=store,
+                profile_service=profile_service,
+                meta_service=meta_service,
+            )
+            data, profile = knowledge_service.project_summary(
+                profile_name=args.profile,
+                project=getattr(args, "project", None) or project_context.project,
             )
             _print_success(data=data, profile=profile)
             return 0
@@ -553,6 +591,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                     profile_name=args.profile,
                     repo_id=args.repo_id,
                     local_id=args.local_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "comment":
+                data, profile = codeup_service.add_mr_comment(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                    content=args.content,
+                    content_file=args.content_file,
+                    file_path=args.file_path,
+                    line_number=args.line_number,
+                    reply_to=args.reply_to,
+                    resolved=args.resolved,
+                    from_patchset=args.from_patchset,
+                    to_patchset=args.to_patchset,
                 )
                 _print_success(data=data, profile=profile)
                 return 0

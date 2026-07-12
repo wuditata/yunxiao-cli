@@ -387,6 +387,35 @@ HELP_DETAILS = {
           yunxiao version list --name "1.0"
         """,
     ),
+    "yunxiao knowledge": (
+        "聚合多个数据源，生成面向 AI 的知识上下文。",
+        """
+        子命令:
+          context          聚合单个工作项的完整上下文
+          project-summary  项目全局概览
+
+        示例:
+          yunxiao knowledge context 1001
+          yunxiao knowledge context REQ-42 --depth 2
+          yunxiao knowledge project-summary --project <project_id>
+        """,
+    ),
+    "yunxiao knowledge context": (
+        "聚合单个工作项的完整上下文：详情、评论、附件、父项链和递归子项树。支持工作项 ID 或流水号。",
+        """
+        示例:
+          yunxiao knowledge context 1001
+          yunxiao knowledge context REQ-42 --depth 3
+        """,
+    ),
+    "yunxiao knowledge project-summary": (
+        "生成项目全局概览：活跃迭代列表和各分类工作项统计。",
+        """
+        示例:
+          yunxiao knowledge project-summary
+          yunxiao knowledge project-summary --project <project_id>
+        """,
+    ),
     "yunxiao thoughts": (
         "云效 Thoughts 知识库文档操作。当前支持导出知识库为本地 Markdown。",
         """
@@ -631,6 +660,7 @@ HELP_DETAILS = {
           get         查看合并请求详情
           create      创建合并请求
           comments    查看 MR 评论
+          comment     发表 MR 评论（全局/行内/回复）
           merge       合并 MR
           review      获取本地 agent 审核上下文
 
@@ -638,6 +668,7 @@ HELP_DETAILS = {
           yunxiao codeup mr list --repo <repo_id> --state opened
           yunxiao codeup mr get <repo_id> <local_id>
           yunxiao codeup mr review <repo_id> <local_id>
+          yunxiao codeup mr comment <repo_id> <local_id> --content "LGTM"
         """,
     ),
     "yunxiao codeup mr list": (
@@ -672,6 +703,16 @@ HELP_DETAILS = {
         """
         示例:
           yunxiao codeup mr comments <repo_id> <local_id>
+        """,
+    ),
+    "yunxiao codeup mr comment": (
+        "给合并请求发表评论。默认全局评论；传 --file/--line 发行内评论；传 --reply 回复已有评论。版本 ID 自动解析。",
+        """
+        示例:
+          yunxiao codeup mr comment <repo_id> <local_id> --content "整体 LGTM，两处小问题见行内评论"
+          yunxiao codeup mr comment <repo_id> <local_id> --content-file ./review.md
+          yunxiao codeup mr comment <repo_id> <local_id> --file src/main.py --line 42 --content "这里会空指针"
+          yunxiao codeup mr comment <repo_id> <local_id> --reply <comment_biz_id> --content "已修复" --resolved
         """,
     ),
     "yunxiao codeup mr merge": (
@@ -1008,6 +1049,24 @@ def build_parser() -> argparse.ArgumentParser:
     version_list_parser.add_argument("--status", help="版本状态过滤，如 TODO、DOING、ARCHIVED")
     version_list_parser.add_argument("--name", help="按名称搜索版本")
 
+    knowledge_parser = subparsers.add_parser("knowledge", help="聚合工作项知识上下文")
+    knowledge_subparsers = _add_subparsers(knowledge_parser, dest="knowledge_command")
+    knowledge_context_parser = knowledge_subparsers.add_parser(
+        "context",
+        help="聚合单个工作项的完整上下文",
+        description="聚合工作项详情、评论、附件、父项链和递归子项树。",
+    )
+    knowledge_context_parser.add_argument("workitem_id", help="工作项 ID 或流水号（如 REQ-42）")
+    knowledge_context_parser.add_argument("--profile", help="profile 名称")
+    knowledge_context_parser.add_argument("--depth", type=int, default=1, help="子项树递归深度，默认 1")
+    knowledge_summary_parser = knowledge_subparsers.add_parser(
+        "project-summary",
+        help="项目全局概览",
+        description="生成项目知识概览，包含活跃迭代和各分类工作项统计。",
+    )
+    knowledge_summary_parser.add_argument("--profile", help="profile 名称")
+    knowledge_summary_parser.add_argument("--project", help="项目 ID；不传时使用 profile 内全部项目")
+
     thoughts_parser = subparsers.add_parser("thoughts", help="云效 Thoughts 知识库文档操作")
     thoughts_subparsers = _add_subparsers(thoughts_parser, dest="thoughts_command")
     thoughts_download_parser = thoughts_subparsers.add_parser(
@@ -1184,6 +1243,22 @@ def build_parser() -> argparse.ArgumentParser:
     codeup_mr_merge.add_argument("--merge-type", default="no-fast-forward", help="合并方式，默认 no-fast-forward")
     codeup_mr_merge.add_argument("--message", dest="merge_message", help="合并提交信息")
     codeup_mr_merge.add_argument("--remove-source-branch", action="store_true", help="合并后删除源分支")
+    codeup_mr_comment = codeup_mr_subparsers.add_parser(
+        "comment",
+        help="发表 MR 评论",
+        description="给合并请求发表全局评论或行内评论；版本 ID 默认自动解析，无需手动传。",
+    )
+    codeup_mr_comment.add_argument("repo_id", help="仓库 ID")
+    codeup_mr_comment.add_argument("local_id", help="合并请求局部 ID")
+    codeup_mr_comment.add_argument("--profile", help="profile 名称")
+    codeup_mr_comment.add_argument("--content", help="评论内容，支持 Markdown")
+    codeup_mr_comment.add_argument("--content-file", help="从文件读取评论内容，推荐多行 Markdown 使用")
+    codeup_mr_comment.add_argument("--file", dest="file_path", help="行内评论的文件路径，如 src/main.py")
+    codeup_mr_comment.add_argument("--line", dest="line_number", type=int, help="行内评论的行号")
+    codeup_mr_comment.add_argument("--reply", dest="reply_to", help="要回复的评论 ID（parent_comment_biz_id）")
+    codeup_mr_comment.add_argument("--resolved", action="store_true", help="同时标记为已解决")
+    codeup_mr_comment.add_argument("--from-patchset", help="比较起始版本 ID；默认自动取合并目标版本")
+    codeup_mr_comment.add_argument("--to-patchset", help="比较目标版本 ID；默认自动取最新合并源版本")
     codeup_mr_review_context = codeup_mr_subparsers.add_parser(
         "review",
         help="获取本地 agent 审核上下文",

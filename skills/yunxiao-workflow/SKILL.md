@@ -1,8 +1,12 @@
 ---
 name: yunxiao-workflow
 description: >
-  Use when an agent needs to operate Alibaba Yunxiao workitems, code repositories, or project management.
-  Auto-trigger when user mentions workitem serial numbers like #ABC-1234, #PROJ-56, or any #<prefix>-<number> pattern.
+  Operate Alibaba Cloud Yunxiao (阿里云云效) via the `yunxiao` CLI: workitems, sprints, versions,
+  Codeup repos/MRs, Flow pipelines, knowledge aggregation and Thoughts docs.
+  Use whenever the user mentions 云效/yunxiao, workitem serial numbers like #REQ-42, #BUG-1234
+  or any #<prefix>-<number> pattern, 工作项/需求/任务/缺陷, 迭代/sprint, 版本, codeup,
+  合并请求/MR, 流水线/flow/pipeline — or asks to init project config, fetch/update tasks,
+  review code, create/review/merge MRs, even without naming the tool.
 triggers:
   - pattern: "#[A-Za-z]+-\\d+"
     description: "Yunxiao workitem serial number, e.g. #REQ-42, #BUG-1234, #TASK-7"
@@ -11,399 +15,242 @@ triggers:
 
 # Yunxiao Workflow
 
-## 概述
+云效协作统一走 `yunxiao` CLI。所有命令输出 JSON 信封：`success` / `profile` / `data` / `warnings`；失败时 `success=false` 且 `error.message` 带原因。命令失败先读 `error.message`，按下方各路线的「失败分支」处理，同一命令最多重试 1 次。
 
-云效工作项协作统一走 `yunxiao`。
+## 何时用哪条路线
 
-- 主入口是 `yunxiao`
-- 输出统一为 JSON：`success`、`profile`、`data`、`warnings`
-- `workitem search` / `workitem mine` 默认返回摘要列表；需要详情时调用 `workitem get`
-
-## 识别规则
-
-当用户消息中出现以下模式时，应使用本 skill 处理：
-
-| 模式 | 示例 | 含义 |
-|------|------|------|
-| `#前缀-数字` | `#REQ-42`、`#BUG-1234`、`#TASK-7` | 云效工作项流水号 |
-| `看一下 #XXX-数字` | "看一下 #FE-128 的进展" | 查询工作项详情 |
-| `处理 #XXX-数字` | "处理一下 #BUG-99" | 流转工作项状态 |
-| 提到"云效/yunxiao/工作项/迭代/sprint/codeup/MR/flow/流水线" | "当前迭代有什么任务" | 云效相关操作 |
-
-**流水号解析规则：**
-
-- 格式：`#前缀-数字`，如 `#REQ-42` → serialNumber 为 `REQ-42`
-- 用 `workitem get` 时直接传流水号：`yunxiao workitem get REQ-42`
-- 用 `knowledge context` 聚合上下文：`yunxiao knowledge context REQ-42`
-- 多个流水号出现时（如"看一下 #FE-1 和 #FE-2"），逐个处理
-
-## 项目级配置
-
-优先使用项目根目录 `.yunxiao.json` 作为 repo 级默认上下文。
-
-如果配置不存在：
-
-1. 先从当前对话收集 `profile`、`assignee`、`project`
-2. 信息足够时直接执行 `yunxiao context init --profile <profile> --assignee <assignee> --project <project>`
-3. 只缺字段时一次性追问补齐，不要拆成多轮
-
-## 字段说明
-
-```json
-{
-  "profile": "<profile>",
-  "assignee": "<assignee>",
-  "project": "<project_id>"
-}
-```
-
-扩展写法：
-
-```json
-{
-  "profile": "<profile>",
-  "assignee": "<assignee>",
-  "project": "<project_id>",
-  "token": "<token>"
-}
-```
-
-| 字段 | 说明 |
+| 用户意图（示例） | 路线 |
 |------|------|
-| `profile` | CLI profile 名，作为所有命令的 `--profile` 参数 |
-| `assignee` | 当前项目默认负责人；创建/更新/`mine` 等场景优先使用 |
-| `project` | 当前 repo 绑定的默认项目 ID |
-| `token` | 可选；存在时，命令执行前先用它刷新本地登录态 |
+| "初始化云效配置"、"这个 repo 绑哪个项目"、首次在新 repo 执行任何云效操作 | [路线 A：项目上下文](#路线-a项目上下文获取或生成) |
+| "我有哪些任务"、"当前迭代要做什么"、"看一下 #REQ-42" | [路线 B：领取任务](#路线-b领取任务) |
+| "处理 #BUG-99"、"更新任务描述"、"把它流转到已完成"、"汇报进度" | [路线 C：推进任务](#路线-c推进任务) |
+| "提个 MR"、"审一下 MR #5"、"合并 MR"、"评审意见发到 MR 上" | [路线 D：代码评审与 MR](#路线-d代码评审与-mr) |
+| 流水线 / 迭代版本 / 知识聚合 / Thoughts 导出 / Codeup 读文件 | [references/commands.md](./references/commands.md) |
+| 多 agent 标准研发流（PM→评审→设计→开发→测试） | [flows/standard-flow.md](./flows/standard-flow.md) |
 
-## 初始化流程
+**流水号识别**：`#前缀-数字`（如 `#REQ-42`）是工作项流水号，去掉 `#` 后可直接传给 `workitem get / update / transition` 和 `knowledge context`，无需先换算成 ID。多个流水号逐个处理。
 
-首次配置后执行：
+---
 
-```bash
-yunxiao login token <token> --account <assignee>
-yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id>
-yunxiao profile use <profile>
+## 路线 A：项目上下文（获取或生成）
+
+任何工作项/MR 操作前都先走这一步。目标：确定 `profile` / `assignee` / `project` 三元组。
+
+**A1. 读取现有配置**（优先）
+
+读项目根目录 `.yunxiao.json`：
+
+```json
+{"profile": "<profile>", "assignee": "<assignee>", "project": "<project_id>", "token": "<可选>"}
 ```
 
-多项目可直接使用：
+- 文件存在 → 直接使用，后续命令可省略 `--profile`；有 `token` 字段时 CLI 会自动刷新登录态，无需手动处理
+- `assignee` 只影响 `create` 和 `mine` 的默认负责人；`update` 永远不会隐式改负责人（改负责人必须显式传 `--assigned-to`）
 
-```bash
-yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id_1>,<project_id_2>
-```
+**A2. 配置不存在 → 生成**
 
-然后为当前 repo 写入项目配置：
+1. 从对话上下文收集三元组；能收集齐就直接执行，缺什么一次性追问补齐（不要拆成多轮）：
 
 ```bash
 yunxiao context init --profile <profile> --assignee <assignee> --project <project_id>
 ```
 
-## 使用流程
-
-| 场景 | 说明 | 文档 |
-|------|------|------|
-| 标准研发流 | PM → 评审 → 设计 → 开发 → 测试的完整多 agent 协作流 | [flows/standard-flow.md](./flows/standard-flow.md) |
-
-## 基础命令参考
-
-登录与 profile：
+2. 不知道有哪些 project 可选时，先列出让用户挑：
 
 ```bash
-yunxiao login token <token> --account <assignee>
-yunxiao profile add <profile> --account <assignee> --org <org_id> --project <project_id>
+yunxiao project list --profile <profile>        # → data.projects[].id / .name
+```
+
+**A3. 本机连 profile 都没有 → 完整初始化**（只在全新机器上需要）
+
+```bash
+yunxiao login token <token> --account <account>    # → 返回可见组织和项目
+yunxiao profile add <profile> --account <account> --org <org_id> --project <project_id>[,<project_id_2>]
 yunxiao profile use <profile>
+yunxiao context init --profile <profile> --assignee <account> --project <project_id>
 ```
 
-元数据与项目：
+token 由用户提供（云效个人设置 → 个人访问令牌），不要编造。
+
+**失败分支**：命令报 profile/账号不存在 → 走 A3；报项目无权限 → `project list` 核对可见项目后让用户确认。
+
+---
+
+## 路线 B：领取任务
+
+**B1. 我的任务**
 
 ```bash
-yunxiao meta reload --profile <profile>
-yunxiao meta types --profile <profile>
-yunxiao project list --profile <profile>
+yunxiao workitem mine --category all            # → data.items[] 摘要列表
 ```
 
-Flow 流水线：
+摘要字段固定为：`id`、`serial`、`subject`、`category`、`type`、`projectId`、`project`、`statusId`、`status`、`statusPhase`、`assignee`、`parentId`、`updatedAt`。按 `status` / `statusPhase` 在结果里过滤"待处理/处理中"，不要假设摘要里有正文。
+
+**B2. 当前迭代的任务**
 
 ```bash
-yunxiao flow pipeline list --search sfe --profile <profile>
-yunxiao flow pipeline get <pipeline_id> --profile <profile>
-yunxiao flow run create <pipeline_id> --branch main --profile <profile>
-yunxiao flow run create <pipeline_id> --tag v1.0.0 --profile <profile>
-yunxiao flow run create <pipeline_id> --env ENV=prod --param debug=true --profile <profile>
-yunxiao flow run create <pipeline_id> \
-  --params '{"runningBranchs":{"https://codeup.aliyun.com/org/repo.git":"main"}}' \
-  --profile <profile>
-yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id> --profile <profile>
+yunxiao sprint list --status DOING              # → 取 data.sprints[].id
+yunxiao workitem search --sprint <sprint_id>    # → 该迭代全部工作项
 ```
 
-`flow pipeline list/get` 用于发现可部署应用和读取代码源、配置等详情。`flow run create` 支持原始 `--params` / `--params-file`，也支持 `--branch`、`--tag`、`--repo-branch`、`--env`、`--param` 等简化参数。只传 `--branch` 或 `--tag` 时，CLI 会读取流水线代码源并生成 `runningBranchs` / `runningTags`。官方 `flow job start` 不接受请求体；需要运行参数时启动新的 run。
-
-工作项：
+**B3. 条件搜索**（找特定任务）
 
 ```bash
-yunxiao workitem create --category Req --subject "新需求" --profile <profile>
-yunxiao workitem create --category Bug --subject "登录失败" --profile <profile> \
-  --field "严重程度=3-一般"
-yunxiao workitem create --category Req --subject "附带材料" --profile <profile> \
-  --attachment ./spec.md --attachment ./demo.png
-yunxiao workitem get 1001 --profile <profile>
-yunxiao workitem mine --category all --profile <profile>
-yunxiao workitem mine --category all --project <project_id_1>,<project_id_2> --sort time --profile <profile>
-yunxiao workitem search --category Task --status "处理中" --profile <profile>
-yunxiao workitem search --category Task --status "处理中" --project <project_id_1>,<project_id_2> --sort time --profile <profile>
-yunxiao workitem search --category Task --status "处理中" --profile <profile> --raw
-yunxiao workitem search --keyword "支付超时" --profile <profile>
-yunxiao workitem search --tag "性能" --priority "P1" --assigned-to "张三" --profile <profile>
-yunxiao workitem update 1001 --desc-file ./req.md --profile <profile>
-yunxiao workitem transition 1001 --to "已完成" --profile <profile>
-# 目标状态有必填字段时，transition 支持直接传字段
-yunxiao workitem transition 1001 --to "处理中" --profile <profile> \
-  --field-json '{"79":"2026-03-17","80":"2026-03-20","101586":3.5}' 
+yunxiao workitem search --category Task --status "处理中"
+yunxiao workitem search --keyword "支付超时"                 # 标题+描述全文
+yunxiao workitem search --assigned-to "张三" --priority P1
 ```
 
-## 创建/更新/状态流转必填字段
+其余过滤参数（tag/时间范围等）见 [references/commands.md](./references/commands.md#搜索参数)。
 
-当创建、更新或状态流转校验必填字段时，`workitem create`、`workitem update`、`workitem transition` 都支持：
+**B4. 读取选中任务的完整上下文**
 
-- `--field "字段名或字段ID=值"`（可重复）
-- `--field-json '{"字段名或字段ID": 值}'`（推荐，一次传完整字段集）
-
-示例：
+从摘要选中目标后，用一条命令拿全部详情（替代 get+comment list+relation 多次调用）：
 
 ```bash
-yunxiao workitem create --category Bug --subject "登录失败" --profile <profile> \
-  --field-json '{"严重程度":"3-一般"}'
-
-yunxiao workitem transition 1001 --to "处理中" --profile <profile> \
-  --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
+yunxiao knowledge context <id或流水号>            # → workitem + comments + attachments + parentChain + childrenTree
+yunxiao knowledge context REQ-42 --depth 2       # 需要看子任务拆解时加 depth（≤3）
 ```
 
-多行 Markdown 描述（尤其包含代码块）统一使用 `--desc-file`，避免 shell 解析破坏正文内容。
+只要正文不要评论时用 `workitem get <id>` 即可。
 
-附件：
+---
+
+## 路线 C：推进任务
+
+**前置**：先 B4 读一遍上下文再动手，尤其要看清当前 `status` 和评论里的最新讨论。
+
+**C1. 更新描述/标题**
 
 ```bash
-yunxiao workitem attachment upload 1001 --profile <profile> --path ./spec.md
-yunxiao workitem attachment list 1001 --profile <profile>
-yunxiao workitem attachment get 1001 --profile <profile> --file file-1
+yunxiao workitem update <id或流水号> --desc-file ./desc.md      # 多行 Markdown 一律走文件，防 shell 破坏内容
+yunxiao workitem update <id或流水号> --subject "新标题"
 ```
 
-附件相关参数说明：
+**C2. 汇报进度 / 提问（评论）**
 
-- `workitem create --attachment <file>`：可重复传入多个文件；工单创建成功后按顺序上传
-- `workitem attachment upload <id> --path <file>`：给已有工单补传单个附件
-- `workitem attachment get <id> --file <file_id>`：查看附件文件信息和下载地址
-- `workitem get` 返回 `resources` 数组，聚合附件和正文 HTML/Markdown 中带 `fileIdentifier` 的资源，并解析真实下载信息。
+按目的选模板填充（`{{}}` 占位符必填、`<!-- -->` 注释删除）后发评论：
 
-失败语义：
-
-- `workitem create --attachment` 先创建工单，再逐个上传附件
-- 附件上传 `fail-fast`
-- 任一附件失败，命令直接返回失败
-- 错误返回里会带上 `workitem`、`uploaded_attachments`、`failed_attachment`
-
-评论与关联：
-
-```bash
-yunxiao comment add --workitem <id> --content "@agent 请评审" --profile <profile>
-yunxiao comment list --workitem <id> --profile <profile>
-yunxiao relation add --parent <id> --child <id> --profile <profile>
-yunxiao relation children --parent <id> --profile <profile>
-```
-
-查询约定：
-
-- `workitem search` / `workitem mine` 默认返回摘要字段：`id`、`serial`、`subject`、`category`、`type`、`projectId`、`project`、`statusId`、`status`、`statusPhase`、`assigneeId`、`assignee`、`parentId`、`updatedAt`
-- 默认不要假设搜索结果里有完整详情字段；需要正文、评论、附件、父项等详情时，拿摘要里的 `id` 再调用 `workitem get`
-- 只有排障或兼容旧脚本时才使用 `--raw`
-
-## 约束
-
-- Agent 先读项目根目录 `.yunxiao.json`
-- 有 `token`：先执行登录刷新，再继续后续命令
-- 无 `token`：直接复用本机已保存的 profile 与 account
-- 默认把 `.yunxiao.json.project` 作为当前 repo 的项目上下文
-- 默认把 `.yunxiao.json.assignee` 作为当前 repo 的负责人上下文
-- 状态、类型、字段、成员解析统一走项目缓存
-- `workitem mine` 与 `workitem search` 在多项目 profile 下会对每个项目拉取全部分页数据后再统一按 `--sort` 排序；但 repo 已绑定 `project` 时默认只查该项目
-
-## 搜索增强参数
-
-`workitem search` 除了 `--category` 和 `--status`，还支持以下过滤条件：
-
-| 参数 | 说明 |
+| 目的 | 模板 |
 |------|------|
-| `--keyword` | 全文搜索标题+描述 |
-| `--tag` | 标签过滤，多个用逗号分隔 |
-| `--priority` | 优先级，如 P1、P2 |
-| `--assigned-to` | 负责人 userId 或名称 |
-| `--sprint` | 迭代 ID |
-| `--created-after` / `--created-before` | 创建时间范围，格式 `YYYY-MM-DD` |
-| `--updated-after` / `--updated-before` | 更新时间范围，格式 `YYYY-MM-DD` |
-
-```bash
-yunxiao workitem search --keyword "支付超时"
-yunxiao workitem search --tag "性能,P1" --assigned-to "张三"
-yunxiao workitem search --created-after "2026-01-01" --created-before "2026-03-31"
-yunxiao workitem search --category Task --keyword "登录" --priority "P1"
-```
-
-## 迭代与版本
-
-```bash
-# 迭代
-yunxiao sprint list                                  # 列出迭代
-yunxiao sprint list --status DOING                   # 只看进行中的
-yunxiao sprint get <sprint_id> --project <project_id> # 迭代详情
-
-# 版本
-yunxiao version list                                 # 列出版本
-yunxiao version list --status TODO                   # 只看待开始的
-yunxiao version list --name "v2.0"                   # 按名称搜索
-```
-
-| 场景 | 操作 |
-|------|------|
-| "当前迭代有哪些任务" | 先 `sprint list --status DOING` 拿 sprint ID，再 `workitem search --sprint <id>` |
-| "v2.0 包含哪些需求" | `version list --name v2.0` |
-
-## 知识聚合
-
-### `knowledge context` — 单个工作项的完整上下文
-
-```bash
-yunxiao knowledge context <workitem_id>
-yunxiao knowledge context <workitem_id> --depth 3
-```
-
-返回结构：
-
-| 字段 | 含义 |
-|------|------|
-| `workitem` | 工作项完整详情（标题、描述、状态、负责人等） |
-| `comments` | 所有评论和讨论 |
-| `attachments` | 附件列表 |
-| `parentChain` | 从直接父项到根的链，理解需求层级 |
-| `childrenTree` | 递归子项树，按 `--depth` 控制深度 |
-
-### `knowledge project-summary` — 项目全局概览
-
-```bash
-yunxiao knowledge project-summary
-yunxiao knowledge project-summary --project <project_id>
-```
-
-返回结构：`activeSprints`（活跃迭代列表）+ `categoryStats`（各分类工作项数量统计）。
-
-| 场景 | 操作 |
-|------|------|
-| "总结需求 #1234 的讨论" | `knowledge context 1234` → 读 `comments` |
-| "这个需求拆了哪些任务" | `knowledge context 1234 --depth 2` → 分析 `childrenTree` |
-| "这个 Bug 属于哪个大需求" | `knowledge context <bug_id>` → 读 `parentChain` |
-| "项目目前什么状态" | `knowledge project-summary` |
-
-注意：`--depth` 越大请求越多，建议不超过 3。
-
-## 代码管理（Codeup）
-
-```bash
-# 仓库
-yunxiao codeup repo list [--search "frontend"]
-yunxiao codeup repo get <repo_id>
-
-# 分支
-yunxiao codeup branch list <repo_id> [--search "feature"]
-
-# 文件
-yunxiao codeup file list <repo_id> [--path "src/main"] [--ref develop] [--recursive]
-yunxiao codeup file get <repo_id> "README.md" [--ref develop]
-
-# 提交
-yunxiao codeup commit list <repo_id> [--ref develop] [--path "src/"] [--search "fix"]
-yunxiao codeup commit list <repo_id> --since "2026-04-01T00:00:00Z"
-yunxiao codeup commit get <repo_id> <sha>
-
-# 代码比较
-yunxiao codeup compare <repo_id> --from master --to develop
-
-# 合并请求（MR）
-yunxiao codeup mr list [--repo <repo_id>] [--state opened] [--search "新功能"]
-yunxiao codeup mr get <repo_id> <local_id>
-yunxiao codeup mr create <repo_id> \
-  --title "修复登录失败" \
-  --source feature/login-fix \
-  --target main \
-  --desc-file ./mr.md \
-  --reviewer <user_id_1>,<user_id_2> \
-  --workitem <workitem_id> \
-  --ai-review
-yunxiao codeup mr comments <repo_id> <local_id>
-yunxiao codeup mr merge <repo_id> <local_id> [--merge-type no-fast-forward] [--message "..."] [--remove-source-branch]
-yunxiao codeup mr review <repo_id> <local_id>
-```
-
-| 场景 | 操作 |
-|------|------|
-| "README 写了什么" | `codeup file get <repo_id> README.md` |
-| "src 目录有哪些文件" | `codeup file list <repo_id> --path src` |
-| "最近有什么代码变更" | `codeup commit list <repo_id> --since 2026-04-20T00:00:00Z` |
-| "master 和 develop 差了什么" | `codeup compare <repo_id> --from master --to develop` |
-| "有哪些待审查的 MR" | `codeup mr list --state opened` |
-| "提交一个 MR/PR" | `codeup mr create <repo_id> --title ... --source ... --target ...` |
-| "审查者对 MR #5 说了什么" | `codeup mr comments <repo_id> 5` |
-| "合并 MR #5" | `codeup mr merge <repo_id> 5` |
-| "本地 agent 审核 MR #5" | `codeup mr review <repo_id> 5` |
-
-注意：
-
-- 云效 Codeup 的 PR/MR 在 OpenAPI 中叫 `ChangeRequest`。
-- 创建 MR 时优先使用数字 `repo_id`；如果使用 `orgId/repoName`，CLI 会先查仓库数字 ID。
-- `--source-project-id` / `--target-project-id` 只在跨库合并或仓库 ID 无法自动推断时手动传。
-- 多行 MR 描述用 `--desc-file`，避免 shell 解析破坏 Markdown。
-- `--reviewer` 和 `--workitem` 可重复传，也可用逗号分隔。
-- `--ai-review` 会传 `triggerAIReviewRun=true`。
-- `codeup mr merge` 默认 `mergeType=no-fast-forward` 且不删除源分支；只有传 `--remove-source-branch` 才删除源分支。
-- `codeup mr review` 返回 MR 详情、版本、全局/行内评论和 compare diff，供本地 agent 审核。
-- `codeup file get` 返回 base64 编码内容。
-
-## 工作项内容模板与规范
-
-创建工作项或发表评论时，**必须**按以下流程使用对应模板。
-
-### 模板通用规则
-
-- 模板文件中 `{{占位符}}` 标记的位置**必须填充**实际内容
-- 模板文件中 `<!-- -->` HTML 注释是给 AI 的提示，生成最终内容时**必须删除**
-- 标题规范写在模板顶部注释块中，生成后传入 `--subject` 参数
-- 可选章节（标题含"可选"）不适用时**整节删除**，不要留空
-
-### 创建工作项（Req / Task / Bug）
-
-操作流程：
-
-1. 根据 `--category` 选择对应模板文件
-2. 读取模板，按上下文填充所有 `{{}}` 占位符
-3. 删除所有 `<!-- -->` 注释
-4. 将最终内容写入临时 `.md` 文件，通过 `--desc-file` 传入
-5. 按模板顶部注释的「标题规范」生成标题，通过 `--subject` 传入
-
-| category | 标题格式 | 描述模板 |
-|----------|----------|----------|
-| Req | `[模块/归属] 需求简述` | [requirement-template.md](./templates/requirement-template.md) |
-| Task | `[父需求摘要] 具体任务` | [task-template.md](./templates/task-template.md) |
-| Bug | `[环境/模块] 现象表现` | [bug-template.md](./templates/bug-template.md) |
-
-### 发表评论
-
-根据评论目的选择对应模板，填充后作为 `comment add --content` 的内容：
-
-| 评论目的 | 模板 |
-|----------|------|
 | 进度同步 / 代码提交 | [reply-progress-template.md](./templates/reply-progress-template.md) |
 | 疑点确认 / 阻塞报告 | [reply-blocker-template.md](./templates/reply-blocker-template.md) |
 | 评审申请 | [reply-review-template.md](./templates/reply-review-template.md) |
 
-### Git 提交规范
+```bash
+yunxiao comment add --workitem <id> --content "<填充后的模板内容>"
+```
 
-| 模板 | 说明 |
-|------|------|
-| [git-commit-template.md](./templates/git-commit-template.md) | Angular 规范 + 云效工作项自动关联 |
+**C3. 状态流转**
+
+```bash
+yunxiao workitem transition <id或流水号> --to "<目标状态名>"
+```
+
+**失败分支（重要）**：
+
+- 报必填字段缺失 → 先查字段定义，再带字段重试**一次**：
+
+```bash
+yunxiao meta fields --category <category>       # → 字段 ID、名称、类型、可选值；不要猜字段名和取值
+yunxiao workitem transition <id> --to "处理中" \
+  --field-json '{"计划开始时间":"2026-03-17","计划完成时间":"2026-03-20","预计工时":3.5}'
+```
+
+- 报状态不存在 → `yunxiao meta statuses --category <category>` 查合法状态名后重试
+- 仍失败 → 停止，把 `error.message` 原样报给用户
+
+**C4. 新建任务/缺陷**（拆子任务、报 Bug）
+
+1. 按 category 选模板生成描述文件：Req → [requirement-template.md](./templates/requirement-template.md)、Task → [task-template.md](./templates/task-template.md)、Bug → [bug-template.md](./templates/bug-template.md)；标题格式按模板顶部注释（Req `[模块] 简述` / Task `[父需求摘要] 任务` / Bug `[环境/模块] 现象`）
+2. 创建并关联：
+
+```bash
+yunxiao workitem create --category Task --subject "[支付] 超时重试逻辑" --desc-file ./task.md \
+  [--parent <父项id或流水号>] [--attachment ./spec.md]
+yunxiao relation add --parent <req_id> --child <task_id>     # create 没传 --parent 时补关联
+```
+
+创建 Bug 常见必填「严重程度」：`--field-json '{"严重程度":"3-一般"}'`；报必填字段错误时同 C3 失败分支。
+
+---
+
+## 路线 D：代码评审与 MR
+
+MR 在云效 OpenAPI 里叫 ChangeRequest。`repo_id` 优先用数字 ID。
+
+**D0. 定位仓库**（不知道 repo_id 时）
+
+```bash
+yunxiao codeup repo list --search "<仓库名关键词>"     # → data.repositories[].id
+```
+
+仓库名通常取 git remote URL 的最后一段（`git remote get-url origin`）。
+
+**D1. 提交 MR**（代码写完 → MR → 回填工作项）
+
+1. 提交代码：commit message 按 [git-commit-template.md](./templates/git-commit-template.md)（Angular 规范 + 关联工作项）
+2. MR 描述写入 `mr.md`（多行 Markdown 一律走 `--desc-file`），创建 MR：
+
+```bash
+yunxiao codeup mr create <repo_id> \
+  --title "feat: 支付超时重试" \
+  --source <当前分支> --target main \
+  --desc-file ./mr.md \
+  --workitem <工作项id> \
+  [--reviewer <user_id_1>,<user_id_2>] [--ai-review]
+# → data.changeRequest.localId / .detailUrl
+```
+
+3. 回填工作项：按 reply-progress 模板评论 MR 链接（C2），需要时流转状态（C3）。
+
+**D2. 评审 MR**（别人代码 → 意见 → 通过则合并）
+
+1. 找目标 MR：
+
+```bash
+yunxiao codeup mr list --state opened [--repo <repo_id>] [--search "<标题关键词>"]   # → localId
+```
+
+2. 一条命令拿全部评审上下文：
+
+```bash
+yunxiao codeup mr review <repo_id> <local_id>
+# → data.changeRequest（详情）/ patchSets（版本）/ comments（已有评论）/ compare.diffs（代码差异）
+```
+
+3. 基于 `compare.diffs` 逐文件审查，产出意见。
+4. 发表评审意见——具体问题发行内评论（钉在文件+行号上），总体结论发全局评论；版本 ID 自动解析，无需手动传：
+
+```bash
+yunxiao codeup mr comment <repo_id> <local_id> --file src/main.py --line 42 --content "这里会空指针"
+yunxiao codeup mr comment <repo_id> <local_id> --content-file ./review-summary.md
+yunxiao codeup mr comment <repo_id> <local_id> --reply <comment_biz_id> --content "已修复" --resolved
+```
+
+5. 结论处理：
+   - 通过 → 合并（默认 no-fast-forward、保留源分支；确需删分支才加 `--remove-source-branch`）：
+
+```bash
+yunxiao codeup mr merge <repo_id> <local_id> [--message "..."]
+```
+
+   - 需修改 → 行内评论列清问题，**不要合并**，告知作者。
+
+**危险操作确认**：`mr merge`、`--remove-source-branch`、`workitem transition --to 已取消` 属于不可逆/高影响操作，执行前先向用户展示目标和影响，获得明确同意再执行。
+
+---
+
+## 通用约束
+
+- 摘要 vs 详情：`search`/`mine` 只给摘要（够选目标即可），正文/评论/附件一律再调 `get` 或 `knowledge context`；`--raw` 只在排障时用
+- 不要编造 ID、流水号、状态名、字段名；不确定就先查（`meta fields` / `meta statuses` / `project list`），或问用户
+- 多项目 profile 下 `mine`/`search` 会聚合全部项目再排序；repo 已绑定 `.yunxiao.json.project` 时默认只查该项目
+- `workitem get` 返回 `resources[]`，聚合了附件与正文内嵌资源的真实下载地址
+- 附件上传 fail-fast：`create --attachment` 先建单后传附件，任一失败即返回错误（错误里带 `workitem`、`uploaded_attachments`、`failed_attachment`）
+
+## 详细参考
+
+- [references/commands.md](./references/commands.md) — 全量命令速查：搜索参数、迭代/版本、知识聚合、Thoughts 导出、Flow 流水线、Codeup 读操作、附件
+- [flows/standard-flow.md](./flows/standard-flow.md) — 多 agent 标准研发流
+- [templates/](./templates/) — 工作项/评论/commit 模板（`{{}}` 必填、`<!-- -->` 删除、可选章节不适用整节删）

@@ -1,169 +1,142 @@
 import json
+import os
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from tests import run_cli, run_cli_json, run_cli_main
+from tests import run_cli_json
+from yunxiao_cli.domain.models import AccountConfig, ProfileConfig, MetaCache
+from yunxiao_cli.domain.store import Store
 
 
-WORKSPACE_URL = "https://thoughts.aliyun.com/workspaces/ws-123/overview"
+class FakeResponse:
+    def __init__(self, payload: dict | list, status_code: int = 200):
+        self.status_code = status_code
+        self._payload = payload
+        self.content = json.dumps(payload).encode("utf-8")
+        self.text = json.dumps(payload, ensure_ascii=False)
+
+    def json(self):
+        return self._payload
 
 
-class ThoughtsCommandsTest(unittest.TestCase):
-    def test_thoughts_download_help_mentions_auth_options(self):
-        code, output = run_cli(["thoughts", "download", "--help"])
-        self.assertEqual(0, code)
-        self.assertIn("--cookie", output)
-        self.assertIn("--cookie-file", output)
-        self.assertIn("--browser", output)
-        self.assertIn("--thread", output)
-        self.assertIn("工作区概览 URL", output)
-
-    def test_thoughts_download_uses_explicit_cookie(self):
-        import yunxiao_cli.app.thoughts_service as thoughts_service
-
-        calls = {"cookies": [], "downloads": [], "browser": []}
-
-        class FakeDownloader:
-            def __init__(self, *, cookie_string):
-                calls["cookies"].append(cookie_string)
-
-            def download_workspace(self, *, url, output_dir, concurrency):
-                calls["downloads"].append({"url": url, "output_dir": output_dir, "concurrency": concurrency})
-                return {
-                    "workspace": {"id": "ws-123", "name": "知识库"},
-                    "output_dir": "D:/tmp/out",
-                    "documents": {"total": 2, "downloaded": 2, "failed": 0},
-                    "failures": [],
-                }
-
-        original_downloader = thoughts_service.ThoughtsDownloader
-        original_loader = thoughts_service.load_browser_cookie_string
-        thoughts_service.ThoughtsDownloader = FakeDownloader
-        thoughts_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser)
-        try:
-            result = run_cli_json(
-                [
-                    "thoughts",
-                    "download",
-                    "--url",
-                    WORKSPACE_URL,
-                    "--cookie",
-                    "a=1; b=2",
-                ]
-            )
-        finally:
-            thoughts_service.ThoughtsDownloader = original_downloader
-            thoughts_service.load_browser_cookie_string = original_loader
-
-        self.assertEqual([], calls["browser"])
-        self.assertEqual(["a=1; b=2"], calls["cookies"])
-        self.assertEqual([{"url": WORKSPACE_URL, "output_dir": None, "concurrency": 3}], calls["downloads"])
-        self.assertTrue(result["success"])
-        self.assertEqual("ws-123", result["data"]["workspace"]["id"])
-
-    def test_thoughts_download_imports_browser_cookie(self):
-        import yunxiao_cli.app.thoughts_service as thoughts_service
-
-        calls = {"cookies": [], "downloads": [], "browser": []}
-
-        class FakeDownloader:
-            def __init__(self, *, cookie_string):
-                calls["cookies"].append(cookie_string)
-
-            def download_workspace(self, *, url, output_dir, concurrency):
-                calls["downloads"].append({"url": url, "output_dir": output_dir, "concurrency": concurrency})
-                return {
-                    "workspace": {"id": "ws-123", "name": "知识库"},
-                    "output_dir": "D:/tmp/out",
-                    "documents": {"total": 1, "downloaded": 1, "failed": 0},
-                    "failures": [],
-                }
-
-        original_downloader = thoughts_service.ThoughtsDownloader
-        original_loader = thoughts_service.load_browser_cookie_string
-        thoughts_service.ThoughtsDownloader = FakeDownloader
-        thoughts_service.load_browser_cookie_string = lambda browser: calls["browser"].append(browser) or "c=3; d=4"
-        try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                result = run_cli_json(
-                    [
-                        "thoughts",
-                        "download",
-                        "--url",
-                        WORKSPACE_URL,
-                        "--browser",
-                        "edge",
-                        "--output",
-                        temp_dir,
-                    ]
-                )
-        finally:
-            thoughts_service.ThoughtsDownloader = original_downloader
-            thoughts_service.load_browser_cookie_string = original_loader
-
-        self.assertEqual(["edge"], calls["browser"])
-        self.assertEqual(["c=3; d=4"], calls["cookies"])
-        self.assertEqual([{"url": WORKSPACE_URL, "output_dir": temp_dir, "concurrency": 3}], calls["downloads"])
-        self.assertTrue(result["success"])
-        self.assertEqual("知识库", result["data"]["workspace"]["name"])
-
-    def test_thoughts_download_passes_custom_thread(self):
-        import yunxiao_cli.app.thoughts_service as thoughts_service
-
-        calls = {"downloads": []}
-
-        class FakeDownloader:
-            def __init__(self, *, cookie_string):
-                self.cookie_string = cookie_string
-
-            def download_workspace(self, *, url, output_dir, concurrency):
-                calls["downloads"].append({"url": url, "output_dir": output_dir, "concurrency": concurrency})
-                return {
-                    "workspace": {"id": "ws-123", "name": "知识库"},
-                    "output_dir": "D:/tmp/out",
-                    "documents": {"total": 1, "downloaded": 1, "failed": 0},
-                    "failures": [],
-                }
-
-        original_downloader = thoughts_service.ThoughtsDownloader
-        thoughts_service.ThoughtsDownloader = FakeDownloader
-        try:
-            result = run_cli_json(
-                [
-                    "thoughts",
-                    "download",
-                    "--url",
-                    WORKSPACE_URL,
-                    "--cookie",
-                    "a=1",
-                    "--thread",
-                    "5",
-                ]
-            )
-        finally:
-            thoughts_service.ThoughtsDownloader = original_downloader
-
-        self.assertEqual([{"url": WORKSPACE_URL, "output_dir": None, "concurrency": 5}], calls["downloads"])
-        self.assertTrue(result["success"])
-
-    def test_thoughts_download_rejects_mixed_auth_inputs(self):
-        code, output = run_cli_main(
-            [
-                "thoughts",
-                "download",
-                "--url",
-                WORKSPACE_URL,
-                "--cookie",
-                "a=1",
-                "--browser",
-                "edge",
-            ]
+def seed_store(root: Path) -> None:
+    store = Store(root=root)
+    store.save_account(
+        AccountConfig(
+            name="pm-a",
+            token="token-a",
+            user={"id": "user-1"},
+            organizations=[{"id": "123", "name": "FOXHIS"}],
         )
+    )
+    store.save_profile(ProfileConfig(name="pm-dev", account="pm-a", org="123", project="456"))
+    store.set_default_profile("pm-dev")
+    store.save_meta_cache(
+        MetaCache(
+            account="pm-a",
+            org="123",
+            project="456",
+            project_info={"id": "456", "name": "AI 项目"},
+            workitem_types=[
+                {"id": "req-type", "categoryId": "Req", "defaultType": True, "name": "产品需求"},
+                {"id": "task-type", "categoryId": "Task", "defaultType": True, "name": "任务"},
+                {"id": "bug-type", "categoryId": "Bug", "defaultType": True, "name": "缺陷"},
+            ],
+            statuses={},
+            fields={},
+            members=[],
+            updated_at="2099-01-01T00:00:00+00:00",
+            ttl_seconds=3600,
+            invalidated=False,
+        )
+    )
 
-        self.assertEqual(1, code)
-        result = json.loads(output)
-        self.assertFalse(result["success"])
-        self.assertIn("三选一", result["error"]["message"])
+
+class KnowledgeCommandsTest(unittest.TestCase):
+    @patch("requests.request")
+    def test_knowledge_context_aggregates_workitem_sources(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "subject": "根需求", "parentId": None, "spaceId": "456"})
+            if url.endswith("/workitems/1001/comments") and method == "GET":
+                return FakeResponse([{"id": "comment-1", "content": "请评审"}])
+            if url.endswith("/workitems/1001/attachments") and method == "GET":
+                return FakeResponse([{"id": "file-1", "name": "spec.md"}])
+            if url.endswith("/workitems:search") and method == "POST":
+                self.assertEqual("456", kwargs["json"].get("spaceId"))
+                conditions = kwargs["json"].get("conditions") or ""
+                if "1001" in str(conditions):
+                    return FakeResponse([{"id": "2001", "subject": "子任务", "parentId": "1001"}])
+                return FakeResponse([])
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["knowledge", "context", "1001", "--profile", "pm-dev"])
+
+        self.assertTrue(result["success"])
+        self.assertEqual("1001", result["data"]["workitem"]["id"])
+        self.assertEqual("comment-1", result["data"]["comments"][0]["id"])
+        self.assertEqual("file-1", result["data"]["attachments"][0]["id"])
+        self.assertIn("parentChain", result["data"])
+        self.assertIn("childrenTree", result["data"])
+
+    @patch("requests.request")
+    def test_knowledge_context_resolves_serial_number(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/workitems:search") and method == "POST":
+                payload = kwargs["json"]
+                if payload.get("category") == "Req" and payload.get("page") == 1:
+                    return FakeResponse([{"id": "1001", "serialNumber": "REQ-42", "subject": "根需求"}])
+                return FakeResponse([])
+            if url.endswith("/workitems/1001") and method == "GET":
+                return FakeResponse({"id": "1001", "subject": "根需求", "parentId": None})
+            if url.endswith("/workitems/1001/comments") and method == "GET":
+                return FakeResponse([])
+            if url.endswith("/workitems/1001/attachments") and method == "GET":
+                return FakeResponse([])
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["knowledge", "context", "REQ-42", "--profile", "pm-dev"])
+
+        self.assertTrue(result["success"])
+        self.assertEqual("1001", result["data"]["workitem"]["id"])
+
+    @patch("requests.request")
+    def test_knowledge_project_summary_counts_categories(self, request_mock):
+        def request_side_effect(method, url, **kwargs):
+            if url.endswith("/projects/456") and method == "GET":
+                return FakeResponse({"id": "456", "name": "AI 项目"})
+            if url.endswith("/sprints") and method == "GET":
+                return FakeResponse([{"id": "sprint-1", "name": "迭代一", "status": "DOING"}])
+            if url.endswith("/workitems:search") and method == "POST":
+                if kwargs["json"].get("category") == "Req":
+                    return FakeResponse([{"id": "1001"}, {"id": "1002"}])
+                return FakeResponse([])
+            raise AssertionError(f"{method} {url}")
+
+        request_mock.side_effect = request_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            seed_store(Path(temp_dir))
+            with patch.dict(os.environ, {"YUNXIAO_CLI_HOME": temp_dir}, clear=False):
+                result = run_cli_json(["knowledge", "project-summary", "--profile", "pm-dev"])
+
+        self.assertTrue(result["success"])
+        summary = result["data"]["projects"][0]
+        self.assertEqual("sprint-1", summary["activeSprints"][0]["id"])
+        self.assertEqual({"total": 2, "capped": False}, summary["categoryStats"]["Req"])
+        self.assertEqual({"total": 0, "capped": False}, summary["categoryStats"]["Task"])
 
 
 if __name__ == "__main__":

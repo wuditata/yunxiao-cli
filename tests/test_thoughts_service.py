@@ -48,7 +48,7 @@ class FakeExporter:
         }
 
 
-class KnowledgeServiceTest(unittest.TestCase):
+class ThoughtsServiceTest(unittest.TestCase):
     def test_markdown_renderer_renders_blocks(self):
         renderer = ThoughtsMarkdownRenderer()
 

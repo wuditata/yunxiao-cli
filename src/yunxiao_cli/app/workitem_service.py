@@ -19,6 +19,10 @@ from .profile_service import ProfileService
 from .workitem_summary import WorkitemSummaryBuilder
 
 
+# 流水号形如 REQ-42 / BUG-1234；真实工作项 ID 是纯数字或十六进制串，不含 "-"
+SERIAL_NUMBER_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+$")
+
+
 class _DescriptionResourceParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -141,6 +145,7 @@ class WorkitemService:
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         api = self._projex_api(profile)
+        workitem_id = self._resolve_workitem_ref(api, profile, workitem_id)
         workitem = api.get_work_item(profile.org, workitem_id)
         data: dict[str, Any] = {"workitem": workitem}
         if with_comments:
@@ -313,6 +318,7 @@ class WorkitemService:
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
         api = self._projex_api(profile)
+        workitem_id = self._resolve_workitem_ref(api, profile, workitem_id)
         current = api.get_work_item(profile.org, workitem_id)
         workitem_type_id = current.get("workitemType", {}).get("id")
         if not workitem_type_id:
@@ -453,6 +459,21 @@ class WorkitemService:
         if not workitem_id:
             raise CliError(f"parent workitem id missing: {parent_ref}")
         return str(workitem_id)
+
+    def resolve_workitem_id(self, *, profile_name: str | None, ref: str) -> str:
+        """把流水号（如 REQ-42）解析为工作项 ID；纯 ID 原样返回。"""
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._projex_api(profile)
+        return self._resolve_workitem_ref(api, profile, ref)
+
+    def _resolve_workitem_ref(self, api: ProjexAPI, profile, ref: str) -> str:
+        ref = str(ref).strip()
+        if not SERIAL_NUMBER_RE.fullmatch(ref):
+            return ref
+        item = self._find_workitem_by_serial_number(api, profile, ref)
+        if not item or not item.get("id"):
+            raise CliError(f"workitem not found by serial number: {ref}")
+        return str(item["id"])
 
     def _find_workitem_by_serial_number(self, api: ProjexAPI, profile, serial_number: str) -> dict[str, Any] | None:
         for category in self.meta_service.CATEGORY_CHOICES:

@@ -42,7 +42,8 @@ class KnowledgeService:
         attachments = api.list_workitem_attachments(profile.org, workitem_id)
 
         parent_chain = self._build_parent_chain(api, profile.org, workitem)
-        children_tree = self._build_children_tree(api, profile.org, workitem_id, depth=depth)
+        project_id = str(workitem.get("spaceId") or workitem.get("projectId") or profile.project or "")
+        children_tree = self._build_children_tree(api, profile.org, project_id, workitem_id, depth=depth)
 
         return {
             "workitem": workitem,
@@ -70,16 +71,17 @@ class KnowledgeService:
             sprints = api.list_sprints(profile.org, project_id)
             active_sprints = [s for s in sprints if self._is_active_sprint(s)]
 
-            category_stats: dict[str, dict[str, int]] = {}
+            category_stats: dict[str, dict[str, Any]] = {}
             for category in self.meta_service.CATEGORY_CHOICES:
                 items = api.search_workitems(
                     org_id=profile.org,
                     project_id=project_id,
                     category=category,
-                    per_page=1,
+                    per_page=100,
                 )
                 total = len(items) if items else 0
-                category_stats[category] = {"total": total}
+                # ponytail: 单页统计，capped=true 表示"至少 100"；要精确值再翻页
+                category_stats[category] = {"total": total, "capped": total >= 100}
 
             summaries.append({
                 "projectId": project_id,
@@ -134,6 +136,7 @@ class KnowledgeService:
         self,
         api: ProjexAPI,
         org_id: str,
+        project_id: str,
         workitem_id: str,
         *,
         depth: int,
@@ -145,7 +148,7 @@ class KnowledgeService:
         try:
             children = api.search_workitems(
                 org_id=org_id,
-                project_id="",
+                project_id=project_id,
                 parent_id=workitem_id,
                 per_page=100,
             )
@@ -164,7 +167,7 @@ class KnowledgeService:
             }
             if child_id and current_depth + 1 < depth:
                 node["children"] = self._build_children_tree(
-                    api, org_id, str(child_id),
+                    api, org_id, project_id, str(child_id),
                     depth=depth, current_depth=current_depth + 1,
                 )
             tree.append(node)
