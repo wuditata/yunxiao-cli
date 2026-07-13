@@ -103,6 +103,7 @@ Copy-Item .yunxiao.json.temple .yunxiao.json
 - `assignee`：当前项目默认负责人
 - `project`：当前 repo 绑定的默认项目 ID
 - `token`：可选；存在时 CLI 执行命令前会先刷新本地登录态
+- `flow`：可选；按环境和目标保存 Flow 流水线 ID 与官方运行参数
 
 初始化 profile：
 
@@ -313,6 +314,56 @@ yunxiao flow job start <pipeline_id> <pipeline_run_id> <job_id>
 ```
 
 官方 job start 接口不接受请求体；需要运行参数时用 `flow run create`。
+
+### 配置化打包
+
+项目级配置使用 `.yunxiao.json.flow`。需要跨仓库复用时，将相同结构保存到：
+
+```text
+~/.yunxiao/projects/<project-name>-<project-id>.json
+```
+
+两处配置结构一致。项目级 `flow` 优先，不存在时才读取全局配置，两者不合并。仓库没有 `.yunxiao.json` 时，Agent 通过 `yunxiao profile show` 获取当前默认项目 ID：
+
+```json
+{
+  "profile": "default",
+  "assignee": "user",
+  "project": "456",
+  "flow": {
+    "test": {
+      "backend": {
+        "pipelineId": "1001",
+        "params": {
+          "envs": {
+            "ENV": "test"
+          }
+        }
+      }
+    },
+    "prod": {
+      "backend": {
+        "pipelineId": "2001",
+        "params": {
+          "envs": {
+            "ENV": "prod"
+          }
+        }
+      },
+      "frontend": {
+        "pipelineId": "2002",
+        "params": {}
+      }
+    }
+  }
+}
+```
+
+Agent 收到“打包生产环境”等指令时，会选择对应环境的打包项，并将每项的 `pipelineId`、`params` 直接传给现有命令：
+
+```powershell
+yunxiao flow run create <pipeline_id> --params '<params-json>' --profile <profile>
+```
 
 ## 知识聚合
 

@@ -1,5 +1,19 @@
 {
   "profile": "<your_profile_name>",
   "assignee": "<your_assignee>",
-  "project": "<your_project_id>"
+  "project": "<your_project_id>",
+  "flow": {
+    "test": {
+      "<target_name>": {
+        "pipelineId": "<pipeline_id>",
+        "params": {}
+      }
+    },
+    "prod": {
+      "<target_name>": {
+        "pipelineId": "<pipeline_id>",
+        "params": {}
+      }
+    }
+  }
 }
