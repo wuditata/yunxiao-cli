@@ -138,6 +138,7 @@ class ProjectContextConfig:
     assignee: str
     project: str
     token: str = ""
+    flow: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = {
@@ -147,6 +148,8 @@ class ProjectContextConfig:
         }
         if self.token:
             data["token"] = self.token
+        if self.flow:
+            data["flow"] = self.flow
         return data
 
     @classmethod
@@ -160,9 +163,15 @@ class ProjectContextConfig:
             raise ValueError("assignee is required")
         if not project:
             raise ValueError("project is required")
+        flow = data.get("flow")
+        if flow is None:
+            flow = {}
+        if not isinstance(flow, dict):
+            raise ValueError("flow must be an object")
         return cls(
             profile=profile,
             assignee=assignee,
             project=project,
             token=str(data.get("token") or "").strip(),
+            flow=flow,
         )

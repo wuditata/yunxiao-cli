@@ -36,13 +36,15 @@ class ContextService:
         token: str | None = None,
         cwd: Path | None = None,
     ) -> tuple[ProjectContextConfig, Path]:
+        path = (cwd or Path.cwd()) / self.FILE_NAME
+        existing, _ = self.load_project_context(cwd=path.parent) if path.exists() else (None, None)
         config = ProjectContextConfig(
             profile=profile.strip(),
             assignee=assignee.strip(),
             project=project.strip(),
             token=(token or "").strip(),
+            flow=existing.flow if existing else {},
         )
-        path = (cwd or Path.cwd()) / self.FILE_NAME
         self._write_config(path, config)
         return config, path
 
