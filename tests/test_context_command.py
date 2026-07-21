@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests import run_cli_json
+from yunxiao_cli.app.context_service import ContextService
+from yunxiao_cli.app.errors import CliError
 from yunxiao_cli.domain.models import AccountConfig
 from yunxiao_cli.domain.store import Store
 
@@ -57,6 +59,71 @@ class ProfileCommandTest(unittest.TestCase):
             },
             config,
         )
+
+    def test_context_init_preserves_flow_config(self):
+        flow = {
+            "prod": {
+                "backend": {
+                    "pipelineId": "2001",
+                    "params": {"envs": {"ENV": "prod"}},
+                }
+            }
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "apollo-repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            config_path = project_root / ".yunxiao.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "profile": "old",
+                        "assignee": "old-user",
+                        "project": "123456",
+                        "flow": flow,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            current_dir = Path.cwd()
+            try:
+                os.chdir(project_root)
+                result = run_cli_json(
+                    [
+                        "context",
+                        "init",
+                        "--profile",
+                        "apollo",
+                        "--assignee",
+                        "wyx",
+                        "--project",
+                        "123456",
+                    ]
+                )
+            finally:
+                os.chdir(current_dir)
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(result["success"])
+        self.assertEqual(flow, config["flow"])
+
+    def test_context_rejects_non_object_flow_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "apollo-repo"
+            project_root.mkdir(parents=True, exist_ok=True)
+            (project_root / ".yunxiao.json").write_text(
+                json.dumps(
+                    {
+                        "profile": "apollo",
+                        "assignee": "wyx",
+                        "project": "123456",
+                        "flow": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(CliError, "flow must be an object"):
+                ContextService(Store(root=Path(temp_dir) / "store")).load_project_context(cwd=project_root)
 
     @patch("requests.request")
     def test_profile_add_creates_meta_cache(self, request_mock):

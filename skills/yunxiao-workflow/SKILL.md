@@ -5,12 +5,12 @@ description: >
   Codeup repos/MRs, Flow pipelines, knowledge aggregation and Thoughts docs.
   Use whenever the user mentions 云效/yunxiao, workitem serial numbers like #REQ-42, #BUG-1234
   or any #<prefix>-<number> pattern, 工作项/需求/任务/缺陷, 迭代/sprint, 版本, codeup,
-  合并请求/MR, 流水线/flow/pipeline — or asks to init project config, fetch/update tasks,
+  合并请求/MR, 流水线/flow/pipeline, 打包测试或生产环境 — or asks to init project config, fetch/update tasks,
   review code, create/review/merge MRs, even without naming the tool.
 triggers:
   - pattern: "#[A-Za-z]+-\\d+"
     description: "Yunxiao workitem serial number, e.g. #REQ-42, #BUG-1234, #TASK-7"
-  - keywords: ["云效", "yunxiao", "工作项", "workitem", "迭代", "sprint", "codeup", "合并请求", "MR", "flow", "流水线"]
+  - keywords: ["云效", "yunxiao", "工作项", "workitem", "迭代", "sprint", "codeup", "合并请求", "MR", "flow", "流水线", "打包"]
 ---
 
 # Yunxiao Workflow
@@ -25,6 +25,7 @@ triggers:
 | "我有哪些任务"、"当前迭代要做什么"、"看一下 #REQ-42" | [路线 B：领取任务](#路线-b领取任务) |
 | "处理 #BUG-99"、"更新任务描述"、"把它流转到已完成"、"汇报进度" | [路线 C：推进任务](#路线-c推进任务) |
 | "提个 MR"、"审一下 MR #5"、"合并 MR"、"评审意见发到 MR 上" | [路线 D：代码评审与 MR](#路线-d代码评审与-mr) |
+| "打包测试环境"、"打包生产环境"、"打包生产环境后端" | [路线 E：配置化 Flow 打包](#路线-e配置化-flow-打包) |
 | 流水线 / 迭代版本 / 知识聚合 / Thoughts 导出 / Codeup 读文件 | [references/commands.md](./references/commands.md) |
 | 多 agent 标准研发流（PM→评审→设计→开发→测试） | [flows/standard-flow.md](./flows/standard-flow.md) |
 
@@ -238,6 +239,41 @@ yunxiao codeup mr merge <repo_id> <local_id> [--message "..."]
    - 需修改 → 行内评论列清问题，**不要合并**，告知作者。
 
 **危险操作确认**：`mr merge`、`--remove-source-branch`、`workitem transition --to 已取消` 属于不可逆/高影响操作，执行前先向用户展示目标和影响，获得明确同意再执行。
+
+---
+
+## 路线 E：配置化 Flow 打包
+
+**E1. 读取配置**
+
+1. 优先读取当前项目 `.yunxiao.json`；其中包含非空 `flow` 对象时直接使用。
+2. 项目配置不存在或没有 `flow` 时，先取项目配置中的 `project`；没有项目配置则执行 `yunxiao profile show`，取 `data.profile.project`。
+3. 根据项目 ID 唯一匹配 `~/.yunxiao/projects/*-<project-id>.json`。全局文件名固定为 `~/.yunxiao/projects/<project-name>-<project-id>.json`，文件内容与项目级配置完全一致。
+
+项目级与全局配置不合并。全局配置不存在或同一项目 ID 匹配多个文件时停止执行并报告原因。
+
+**E2. 选择并校验**
+
+- “打包生产环境”选择 `prod` 下全部目标；“打包生产环境后端”只选择 `prod.backend`；测试环境使用 `test`。
+- 启动前一次性校验全部选中项：`pipelineId` 必须非空，`params` 必须是 JSON 对象。
+- 环境、目标或配置无效时不启动任何流水线，并返回合法选项。
+
+**E3. 启动流水线**
+
+将每项 `params` 压缩为 JSON，逐个调用现有命令：
+
+```bash
+yunxiao flow run create <pipeline_id> --params '<params-json>' --profile <profile>
+```
+
+PowerShell 7 中使用变量传递 JSON，避免转义破坏参数：
+
+```powershell
+$params = $target.params | ConvertTo-Json -Depth 100 -Compress
+yunxiao flow run create $target.pipelineId --params $params --profile $config.profile
+```
+
+单项 API 失败时继续其余目标，最终按目标汇总 `pipelineRunId` 或错误。打包层不自动重试，避免重复创建流水线运行。
 
 ---
 

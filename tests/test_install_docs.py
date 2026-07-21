@@ -31,6 +31,14 @@ class InstallDocsTest(unittest.TestCase):
         self.assertIn("references/commands.md", skill)
         self.assertIn("yunxiao codeup mr comment", skill)
 
+    def test_skill_doc_describes_configured_flow_builds(self):
+        content = (ROOT / "skills" / "yunxiao-workflow" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("~/.yunxiao/projects/<project-name>-<project-id>.json", content)
+        self.assertIn("pipelineId", content)
+        self.assertIn("打包生产环境", content)
+        self.assertIn("yunxiao profile show", content)
+        self.assertIn("yunxiao flow run create <pipeline_id> --params", content)
+
     def test_install_script_mentions_yunxiao_cli_entrypoint(self):
         content = (ROOT / "install.sh").read_text(encoding="utf-8")
         self.assertIn("yunxiao --help", content)
@@ -51,6 +59,8 @@ class InstallDocsTest(unittest.TestCase):
         self.assertIn("yunxiao workitem attachment upload", content)
         self.assertIn("兼容旧命令 `yunxiao_cli`", content)
         self.assertIn("--attachment", content)
+        self.assertIn("~/.yunxiao/projects/<project-name>-<project-id>.json", content)
+        self.assertIn(".yunxiao.json.flow", content)
 
     def test_template_file_exists_and_readme_mentions_it(self):
         template = ROOT / ".yunxiao.json.temple"
@@ -62,6 +72,14 @@ class InstallDocsTest(unittest.TestCase):
         self.assertNotIn('"token"', template_content)
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(".yunxiao.json.temple", readme)
+
+    def test_template_contains_flow_build_config(self):
+        content = (ROOT / ".yunxiao.json.temple").read_text(encoding="utf-8")
+        self.assertIn('"flow"', content)
+        self.assertIn('"test"', content)
+        self.assertIn('"prod"', content)
+        self.assertIn('"pipelineId"', content)
+        self.assertIn('"params"', content)
 
 
 if __name__ == "__main__":
