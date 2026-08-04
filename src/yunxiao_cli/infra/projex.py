@@ -132,6 +132,37 @@ class ProjexAPI(BaseAPI):
             payload.update(custom_fields)
         return self.put(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}", data=payload)
 
+    def list_effort_records(self, org_id: str, workitem_id: str) -> list[dict]:
+        items = self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/effortRecords")
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
+
+    def create_effort_record(
+        self,
+        org_id: str,
+        workitem_id: str,
+        *,
+        actual_time: float,
+        gmt_start: str,
+        gmt_end: str,
+        description: str | None = None,
+        work_type: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "actualTime": actual_time,
+            "gmtStart": gmt_start,
+            "gmtEnd": gmt_end,
+        }
+        if description is not None:
+            payload["description"] = description
+        if work_type is not None:
+            payload["workType"] = work_type
+        return self.post(
+            f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/effortRecords",
+            data=payload,
+        )
+
     def list_estimated_efforts(self, org_id: str, workitem_id: str) -> list[dict]:
         items = self.get(f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/estimatedEfforts")
         if isinstance(items, list):
@@ -239,6 +270,7 @@ class ProjexAPI(BaseAPI):
         if updated_after:
             to_value = f"{updated_before} 23:59:59" if updated_before else None
             filters.append(self._search_range_condition("gmtModified", f"{updated_after} 00:00:00", to_value, "dateTime"))
+        filters.append(self._search_multi_condition("logicalStatus", "normal,archived", "string", "list"))
         result = self.post(
             f"/oapi/v1/projex/organizations/{org_id}/workitems:search",
             data={

@@ -301,6 +301,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
+        if args.command == "workitem" and args.workitem_command == "effort":
+            if args.workitem_effort_command == "add":
+                data, profile = workitem_service.add_effort(
+                    profile_name=args.profile,
+                    workitem_id=args.workitem_id,
+                    hours=args.hours,
+                    date_value=args.date,
+                    description=args.description,
+                    work_type=args.work_type,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if args.workitem_effort_command == "list":
+                data, profile = workitem_service.list_efforts(
+                    profile_name=args.profile,
+                    workitem_id=args.workitem_id,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
         if args.command == "workitem" and args.workitem_command == "attachment":
             if args.workitem_attachment_command == "upload":
                 data, profile = attachment_service.upload(

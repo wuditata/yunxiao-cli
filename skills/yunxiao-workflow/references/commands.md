@@ -32,6 +32,15 @@ yunxiao project list                     # 组织下可见项目
 yunxiao project get                      # 当前 profile 绑定的项目
 ```
 
+## 实际工时
+
+```bash
+yunxiao workitem effort add <id或流水号> --hours 4 --date 2026-07-21 --description "完成开发"
+yunxiao workitem effort list <id或流水号>
+```
+
+`--work-type` 可选。项目未配置对应类型时不要传；「实际工时」汇总字段不能通过 `workitem update` 直接修改。
+
 ## 迭代与版本
 
 ```bash
