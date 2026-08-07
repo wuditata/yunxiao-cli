@@ -349,6 +349,9 @@ class WorkitemUpdateCommandsTest(unittest.TestCase):
         def request_side_effect(method, url, **kwargs):
             if url.endswith("/workitems:search") and method == "POST":
                 payload = kwargs["json"]
+                conditions = json.loads(payload["conditions"])["conditionGroups"][0]
+                logical_status = next(item for item in conditions if item["fieldIdentifier"] == "logicalStatus")
+                self.assertEqual(["normal", "archived"], logical_status["value"])
                 if payload.get("category") == "Task" and payload.get("page") == 1:
                     return FakeResponse([{"id": "1001", "serialNumber": "TASK-7", "subject": "子任务"}])
                 return FakeResponse([])

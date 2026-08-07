@@ -181,6 +181,7 @@ HELP_DETAILS = {
           search        多条件搜索工作项
           update        更新工作项
           transition    流转工作项状态
+          effort        登记和查询实际工时
           attachment    管理工作项附件
 
         示例:
@@ -250,6 +251,35 @@ HELP_DETAILS = {
         示例:
           yunxiao workitem transition <workitem_id> --to "处理中"
           yunxiao workitem transition <workitem_id> --to "处理中" --field-json '{"计划开始时间":"2026-03-17","预计工时":3.5}'
+        """,
+    ),
+    "yunxiao workitem effort": (
+        "登记和查询工作项实际工时。",
+        """
+        子命令:
+          add     登记实际工时
+          list    查询实际工时明细
+
+        示例:
+          yunxiao workitem effort add <workitem_id> --hours 4 --date 2026-07-21
+          yunxiao workitem effort list <workitem_id>
+        """,
+    ),
+    "yunxiao workitem effort add": (
+        "给指定工作项登记一条实际工时记录。",
+        """
+        示例:
+          yunxiao workitem effort add <workitem_id> --hours 4 --date 2026-07-21 --description "完成接口开发"
+
+        说明:
+          --work-type 仅在项目已配置对应工时类型时传入；重复调用会新增记录。
+        """,
+    ),
+    "yunxiao workitem effort list": (
+        "查询指定工作项的实际工时明细。",
+        """
+        示例:
+          yunxiao workitem effort list <workitem_id>
         """,
     ),
     "yunxiao workitem attachment": (
@@ -974,6 +1004,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help='字段 JSON，可重复，如 \'{"计划完成时间":"2026-03-20"}\'',
     )
+
+    workitem_effort_parser = workitem_subparsers.add_parser(
+        "effort",
+        help="登记和查询实际工时",
+        description="登记或查询工作项实际工时。",
+    )
+    workitem_effort_subparsers = _add_subparsers(workitem_effort_parser, dest="workitem_effort_command")
+    workitem_effort_add_parser = workitem_effort_subparsers.add_parser(
+        "add",
+        help="登记实际工时",
+        description="给工作项登记一条实际工时记录。",
+    )
+    workitem_effort_add_parser.add_argument("workitem_id", help="工作项 ID 或流水号")
+    workitem_effort_add_parser.add_argument("--profile", help="profile 名称")
+    workitem_effort_add_parser.add_argument("--hours", required=True, type=float, help="实际工时，单位为小时")
+    workitem_effort_add_parser.add_argument("--date", required=True, help="工作日期，格式 YYYY-MM-DD")
+    workitem_effort_add_parser.add_argument("--description", help="工作说明，最多 500 字符")
+    workitem_effort_add_parser.add_argument("--work-type", help="项目已配置的工时类型")
+    workitem_effort_list_parser = workitem_effort_subparsers.add_parser(
+        "list",
+        help="查询实际工时",
+        description="查询工作项实际工时明细。",
+    )
+    workitem_effort_list_parser.add_argument("workitem_id", help="工作项 ID 或流水号")
+    workitem_effort_list_parser.add_argument("--profile", help="profile 名称")
 
     workitem_attachment_parser = workitem_subparsers.add_parser(
         "attachment",

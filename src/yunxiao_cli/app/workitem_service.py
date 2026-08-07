@@ -374,6 +374,47 @@ class WorkitemService:
             field_json_pairs=field_json_pairs,
         )
 
+    def list_efforts(
+        self,
+        *,
+        profile_name: str | None,
+        workitem_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._projex_api(profile)
+        resolved_id = self._resolve_workitem_ref(api, profile, workitem_id)
+        efforts = api.list_effort_records(profile.org, resolved_id)
+        return {"efforts": efforts}, self._profile_dict(profile)
+
+    def add_effort(
+        self,
+        *,
+        profile_name: str | None,
+        workitem_id: str,
+        hours: Any,
+        date_value: str,
+        description: str | None = None,
+        work_type: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._projex_api(profile)
+        resolved_id = self._resolve_workitem_ref(api, profile, workitem_id)
+        actual_time = self._parse_actual_time(hours)
+        effort_date = self._parse_effort_date(date_value)
+        if description is not None and len(description) > 500:
+            raise CliError("effort description must not exceed 500 characters")
+        timestamp = f"{effort_date}T00:00:00.000Z"
+        effort = api.create_effort_record(
+            profile.org,
+            resolved_id,
+            actual_time=actual_time,
+            gmt_start=timestamp,
+            gmt_end=timestamp,
+            description=description,
+            work_type=work_type,
+        )
+        return {"effort": effort}, self._profile_dict(profile)
+
     def _projex_api(self, profile) -> ProjexAPI:
         account = self.store.get_account(profile.account)
         return ProjexAPI(token=account.token)
@@ -650,6 +691,23 @@ class WorkitemService:
         if spent_time <= 0:
             raise CliError("estimated effort must be greater than 0")
         return spent_time
+
+    @staticmethod
+    def _parse_actual_time(value: Any) -> float:
+        try:
+            actual_time = float(value)
+        except (TypeError, ValueError) as error:
+            raise CliError(f"invalid actual effort value: {value}") from error
+        if actual_time <= 0:
+            raise CliError("actual effort must be greater than 0")
+        return actual_time
+
+    @staticmethod
+    def _parse_effort_date(value: str) -> str:
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except (TypeError, ValueError) as error:
+            raise CliError(f"invalid effort date: {value}; expected YYYY-MM-DD") from error
 
     def _search_all_by_category(
         self,

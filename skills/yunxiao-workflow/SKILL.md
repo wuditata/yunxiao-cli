@@ -174,6 +174,17 @@ yunxiao relation add --parent <req_id> --child <task_id>     # create 没传 --p
 
 创建 Bug 常见必填「严重程度」：`--field-json '{"严重程度":"3-一般"}'`；报必填字段错误时同 C3 失败分支。
 
+**C5. 登记实际工时**
+
+```bash
+yunxiao workitem effort add <id或流水号> --hours 4 --date 2026-07-21 --description "完成 Gateway SLS 日志接入"
+yunxiao workitem effort list <id或流水号>
+```
+
+- `--work-type` 可选，仅在项目已配置对应类型时传入。
+- 不要通过 `workitem update --field-json` 修改「实际工时」，该字段是工时记录的只读汇总。
+- 登记后使用 `workitem effort list` 或 `workitem get` 核对记录及汇总。
+
 ---
 
 ## 路线 D：代码评审与 MR

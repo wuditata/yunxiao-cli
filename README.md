@@ -279,6 +279,18 @@ yunxiao workitem attachment get 1001 --profile pm-dev --file file-1
 - 已成功上传的 `uploaded_attachments`
 - 当前失败的 `failed_attachment`
 
+实际工时：
+
+```bash
+yunxiao workitem effort add UXIE-3397 --profile sep --hours 4 --date 2026-07-21 \
+  --description "Gateway 接入阿里云 SLS 日志传输"
+yunxiao workitem effort list UXIE-3397 --profile sep
+```
+
+- `--date` 使用 `YYYY-MM-DD`。
+- `--work-type` 可选，仅在项目已配置对应类型时传入。
+- `实际工时` 是只读汇总字段，必须使用 `workitem effort add`，不能通过 `workitem update --field-json` 登记。
+
 ## Flow 流水线
 
 查询流水线：
