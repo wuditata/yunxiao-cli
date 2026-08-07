@@ -319,7 +319,7 @@ class CodeupMrCommandsTest(unittest.TestCase):
                 "targetBranch": "main",
                 "sourceProjectId": "2813489",
                 "targetProjectId": "2813489",
-                "createFrom": "COMMAND_LINE",
+                "createFrom": "WEB",
                 "description": "实现命令行创建合并请求",
                 "reviewerUserIds": ["user-1", "user-2"],
                 "workItemIds": ["workitem-1"],

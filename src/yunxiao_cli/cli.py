@@ -1227,9 +1227,9 @@ def build_parser() -> argparse.ArgumentParser:
     codeup_mr_create.add_argument("--workitem", action="append", help="关联工作项 ID，可重复或用逗号分隔")
     codeup_mr_create.add_argument(
         "--create-from",
-        choices=["WEB", "COMMAND_LINE"],
-        default="COMMAND_LINE",
-        help="创建来源，默认 COMMAND_LINE",
+        choices=["WEB"],
+        default="WEB",
+        help="创建来源，当前仅支持 WEB",
     )
     codeup_mr_create.add_argument("--ai-review", action="store_true", help="触发 AI 评审")
     codeup_mr_comments = codeup_mr_subparsers.add_parser("comments", help="查看 MR 评论", description="查看合并请求的评论和代码审查意见。")
