@@ -228,7 +228,7 @@ class CodeupAPI(BaseAPI):
         target_project_id: str | None = None,
         reviewer_user_ids: list[str] | None = None,
         work_item_ids: list[str] | None = None,
-        create_from: str = "COMMAND_LINE",
+        create_from: str = "WEB",
         trigger_ai_review: bool = False,
     ) -> dict:
         encoded = self._encode_repo_id(repo_id)

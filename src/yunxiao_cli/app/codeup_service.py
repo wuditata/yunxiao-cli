@@ -195,7 +195,7 @@ class CodeupService:
         target_project_id: str | None = None,
         reviewer_ids: list[str] | None = None,
         work_item_ids: list[str] | None = None,
-        create_from: str = "COMMAND_LINE",
+        create_from: str = "WEB",
         trigger_ai_review: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         profile = self.profile_service.get_profile(profile_name)
