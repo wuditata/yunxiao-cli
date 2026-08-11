@@ -351,7 +351,7 @@ class WorkitemUpdateCommandsTest(unittest.TestCase):
                 payload = kwargs["json"]
                 conditions = json.loads(payload["conditions"])["conditionGroups"][0]
                 logical_status = next(item for item in conditions if item["fieldIdentifier"] == "logicalStatus")
-                self.assertEqual(["normal", "archived"], logical_status["value"])
+                self.assertEqual(["NORMAL", "ARCHIVED"], logical_status["value"])
                 if payload.get("category") == "Task" and payload.get("page") == 1:
                     return FakeResponse([{"id": "1001", "serialNumber": "TASK-7", "subject": "子任务"}])
                 return FakeResponse([])
