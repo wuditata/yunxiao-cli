@@ -270,7 +270,7 @@ class ProjexAPI(BaseAPI):
         if updated_after:
             to_value = f"{updated_before} 23:59:59" if updated_before else None
             filters.append(self._search_range_condition("gmtModified", f"{updated_after} 00:00:00", to_value, "dateTime"))
-        filters.append(self._search_multi_condition("logicalStatus", "normal,archived", "string", "list"))
+        filters.append(self._search_multi_condition("logicalStatus", "NORMAL,ARCHIVED", "string", "list"))
         result = self.post(
             f"/oapi/v1/projex/organizations/{org_id}/workitems:search",
             data={
