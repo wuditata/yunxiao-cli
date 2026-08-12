@@ -245,6 +245,52 @@ class ProjexAPI(BaseAPI):
         page: int = 1,
         per_page: int = 20,
     ) -> list[dict]:
+        items, _ = self.search_workitems_page(
+            org_id=org_id,
+            project_id=project_id,
+            category=category,
+            status=status,
+            subject=subject,
+            parent_id=parent_id,
+            assigned_to=assigned_to,
+            sprint=sprint,
+            tag=tag,
+            priority=priority,
+            subject_description=subject_description,
+            created_after=created_after,
+            created_before=created_before,
+            updated_after=updated_after,
+            updated_before=updated_before,
+            order_by=order_by,
+            sort=sort,
+            page=page,
+            per_page=per_page,
+        )
+        return items
+
+    def search_workitems_page(
+        self,
+        *,
+        org_id: str,
+        project_id: str,
+        category: str | None = None,
+        status: str | None = None,
+        subject: str | None = None,
+        parent_id: str | None = None,
+        assigned_to: str | None = None,
+        sprint: str | None = None,
+        tag: str | None = None,
+        priority: str | None = None,
+        subject_description: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        updated_after: str | None = None,
+        updated_before: str | None = None,
+        order_by: str = "gmtCreate",
+        sort: str = "desc",
+        page: int = 1,
+        per_page: int = 20,
+    ) -> tuple[list[dict], dict[str, int | None]]:
         filters = []
         if category:
             filters.append(self._search_condition("category", category, "list", "list"))
@@ -265,13 +311,14 @@ class ProjexAPI(BaseAPI):
         if subject_description:
             filters.append(self._search_condition("subject-description", subject_description, "string", "input"))
         if created_after:
-            to_value = f"{created_before} 23:59:59" if created_before else None
-            filters.append(self._search_range_condition("gmtCreate", f"{created_after} 00:00:00", to_value, "dateTime"))
+            to_value = self._date_time_bound(created_before, end=True)
+            filters.append(self._search_range_condition("gmtCreate", self._date_time_bound(created_after), to_value, "dateTime"))
         if updated_after:
-            to_value = f"{updated_before} 23:59:59" if updated_before else None
-            filters.append(self._search_range_condition("gmtModified", f"{updated_after} 00:00:00", to_value, "dateTime"))
+            to_value = self._date_time_bound(updated_before, end=True)
+            filters.append(self._search_range_condition("gmtModified", self._date_time_bound(updated_after), to_value, "dateTime"))
         filters.append(self._search_multi_condition("logicalStatus", "NORMAL,ARCHIVED", "string", "list"))
-        result = self.post(
+        response = self._request_response(
+            "POST",
             f"/oapi/v1/projex/organizations/{org_id}/workitems:search",
             data={
                 "category": category,
@@ -283,9 +330,20 @@ class ProjexAPI(BaseAPI):
                 "conditions": json.dumps({"conditionGroups": [filters] if filters else []}, ensure_ascii=False),
             },
         )
+        result = self._parse_response(response)
         if isinstance(result, list):
-            return result
-        return result.get("result") or result.get("items") or []
+            items = result
+        else:
+            items = result.get("result") or result.get("items") or []
+        headers = getattr(response, "headers", {})
+        pagination = {
+            "page": self._header_int(headers, "x-page") or page,
+            "per_page": self._header_int(headers, "x-per-page") or per_page,
+            "total_pages": self._header_int(headers, "x-total-pages"),
+            "total": self._header_int(headers, "x-total"),
+            "next_page": self._header_int(headers, "x-next-page"),
+        }
+        return items, pagination
 
     def list_sprints(
         self,
@@ -393,3 +451,14 @@ class ProjexAPI(BaseAPI):
             "className": class_name,
             "format": "input",
         }
+
+    @staticmethod
+    def _date_time_bound(value: str | None, *, end: bool = False) -> str | None:
+        if value is None or "T" in value or " " in value:
+            return value
+        return f"{value} {'23:59:59' if end else '00:00:00'}"
+
+    @staticmethod
+    def _header_int(headers: Any, name: str) -> int | None:
+        value = headers.get(name) if hasattr(headers, "get") else None
+        return int(value) if value not in (None, "") else None

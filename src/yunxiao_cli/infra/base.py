@@ -28,19 +28,32 @@ class BaseAPI:
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> Any:
-        response = requests.request(
-            method=method,
-            url=f"{self.BASE_URL}{path}",
-            params=params,
-            json=data,
-            headers={
-                "x-yunxiao-token": self.token,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            timeout=30,
-        )
+        response = self._request_response(method, path, params=params, data=data)
         return self._parse_response(response)
+
+    def _request_response(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> requests.Response:
+        try:
+            return requests.request(
+                method=method,
+                url=f"{self.BASE_URL}{path}",
+                params=params,
+                json=data,
+                headers={
+                    "x-yunxiao-token": self.token,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                timeout=30,
+            )
+        except requests.RequestException as error:
+            raise YunxiaoAPIError(str(error)) from error
 
     @staticmethod
     def _parse_response(response: requests.Response) -> Any:

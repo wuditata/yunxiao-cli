@@ -80,6 +80,28 @@ yunxiao --help
 
 兼容旧命令 `yunxiao_cli`，已有脚本不需要立刻迁移。
 
+## Python Client
+
+服务端集成可直接传入 Token 和组织 ID，不读取本机 profile 或 `.yunxiao.json`：
+
+```python
+from yunxiao_cli import YunxiaoClient
+
+client = YunxiaoClient(token=token, organization_id=organization_id)
+session = client.validate()
+projects = client.list_projects()
+workitem = client.resolve_workitem(project_id, "TASK-42")
+detail = client.get_workitem(workitem.id)
+
+page = client.query_workitems(
+    project_id,
+    updated_after="2026-08-12T10:00:00",
+    page=1,
+)
+```
+
+`query_workitems` 默认查询 Task，按更新时间升序返回，并通过 `next_page` 继续分页。
+
 ## 首次使用
 
 项目根目录下的 `.yunxiao.json` 用于保存 repo 级默认上下文，CLI 和 `skills/yunxiao-workflow` 都会读取它。
