@@ -5,5 +5,7 @@ build/
 dist/
 *.egg-info/
 .tmp/
+/tests/
+/docs/superpowers/
 
 .yunxiao.json

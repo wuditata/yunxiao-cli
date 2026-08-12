@@ -42,13 +42,19 @@ yunxiao flow run create <pipeline_id> --branch main
 
 ## 安装
 
-安装 CLI：
+安装 CLI 和 Skill：
 
 ```bash
 ./install.sh
 ```
 
-安装 Skill（分发到 ~/.agents/skills 及各编辑器）：
+Windows:
+
+```bat
+install.bat
+```
+
+只重新安装 Skill（分发到 `~/.agents/skills` 及各编辑器）：
 
 ```bash
 ./install_skill.sh install
@@ -57,7 +63,6 @@ yunxiao flow run create <pipeline_id> --branch main
 Windows:
 
 ```bat
-install.bat
 install_skill.bat
 ```
 
@@ -129,7 +134,6 @@ yunxiao-cli/
 │   ├── SKILLS.md
 │   └── yunxiao-workflow/SKILL.md
 ├── src/yunxiao_cli/
-├── tests/
 ├── install.sh
 ├── install.bat
 ├── .yunxiao.json.temple
@@ -282,9 +286,9 @@ yunxiao workitem attachment get 1001 --profile pm-dev --file file-1
 实际工时：
 
 ```bash
-yunxiao workitem effort add UXIE-3397 --profile sep --hours 4 --date 2026-07-21 \
+yunxiao workitem effort add TASK-42 --profile demo --hours 4 --date 2026-07-21 \
   --description "Gateway 接入阿里云 SLS 日志传输"
-yunxiao workitem effort list UXIE-3397 --profile sep
+yunxiao workitem effort list TASK-42 --profile demo
 ```
 
 - `--date` 使用 `YYYY-MM-DD`。
@@ -461,7 +465,6 @@ yunxiao thoughts download \
 ## 开发验证
 
 ```bash
-python -m unittest discover tests -v
 python -m py_compile $(find src -name '*.py' -type f)
 PYTHONPATH=src python -m yunxiao_cli.main --help
 ```

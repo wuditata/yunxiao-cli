@@ -89,6 +89,11 @@ class WorkitemService:
             field_pairs or [],
             field_json_pairs or [],
         )
+        estimated_efforts = [
+            self._parse_spent_time(custom_fields.pop(field_id))
+            for field_id in self._resolve_estimated_effort_field_ids(profile, workitem_type["id"])
+            if field_id in custom_fields
+        ]
         created = api.create_work_item(
             org_id=profile.org,
             project_id=profile.project,
@@ -101,6 +106,31 @@ class WorkitemService:
         )
         uploaded_attachments: list[dict[str, Any]] = []
         workitem_id = created.get("id")
+        if estimated_efforts:
+            if not workitem_id:
+                raise CliError("created workitem id missing, cannot add estimated effort", response={"workitem": created})
+            try:
+                for spent_time in estimated_efforts:
+                    self._upsert_estimated_effort(
+                        api=api,
+                        profile=profile,
+                        workitem_id=str(workitem_id),
+                        current=created,
+                        assigned_to=assignee,
+                        raw_spent_time=spent_time,
+                    )
+            except (CliError, YunxiaoAPIError) as error:
+                raise CliError(
+                    "workitem created but estimated effort failed",
+                    response={
+                        "workitem": created,
+                        "estimated_effort_error": {
+                            "message": str(error),
+                            "status_code": getattr(error, "status_code", None),
+                            "response": getattr(error, "response", {}),
+                        },
+                    },
+                ) from error
         if attachment_paths:
             if not workitem_id:
                 raise CliError("created workitem id missing, cannot upload attachments", response={"workitem": created})
