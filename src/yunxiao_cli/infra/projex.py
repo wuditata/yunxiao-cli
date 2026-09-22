@@ -412,10 +412,45 @@ class ProjexAPI(BaseAPI):
         workitem_id: str,
         relation_type: str,
         related_workitem_id: str,
+        operator_id: str | None = None,
     ) -> dict:
+        data = {
+            "relationType": relation_type,
+            "workitemId": related_workitem_id,
+        }
+        if operator_id is not None:
+            data["operatorId"] = operator_id
         return self.post(
             f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/relationRecords",
-            data={"relationType": relation_type, "workitemId": related_workitem_id},
+            data=data,
+        )
+
+    def list_relation_records(self, org_id: str, workitem_id: str, relation_type: str) -> list[dict]:
+        items = self.get(
+            f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/relationRecords",
+            params={"relationType": relation_type},
+        )
+        if isinstance(items, list):
+            return items
+        return items.get("result") or items.get("items") or []
+
+    def delete_relation_record(
+        self,
+        org_id: str,
+        workitem_id: str,
+        relation_type: str,
+        related_workitem_id: str,
+        operator_id: str | None = None,
+    ) -> None:
+        data = {
+            "relationType": relation_type,
+            "workitemId": related_workitem_id,
+        }
+        if operator_id is not None:
+            data["operatorId"] = operator_id
+        self.delete(
+            f"/oapi/v1/projex/organizations/{org_id}/workitems/{workitem_id}/relationRecords",
+            data=data,
         )
 
     @staticmethod

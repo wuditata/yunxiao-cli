@@ -41,6 +41,18 @@ yunxiao workitem effort list <id或流水号>
 
 `--work-type` 可选。项目未配置对应类型时不要传；「实际工时」汇总字段不能通过 `workitem update` 直接修改。
 
+## 工作项关联
+
+```bash
+yunxiao relation add --parent <parent_id> --child <child_id>
+yunxiao relation children --parent <parent_id>
+yunxiao relation link --workitem <source_id> --related <target_id> --type ASSOCIATED
+yunxiao relation list --workitem <workitem_id> --type ASSOCIATED
+yunxiao relation delete --workitem <source_id> --related <target_id> --type ASSOCIATED
+```
+
+`--type` 支持 `PARENT`、`SUB`、`ASSOCIATED`、`DEPEND_ON`、`DEPENDED_BY`。旧的 `relation add/children` 只处理父子关系；通用关联使用 `link/list/delete`。
+
 ## 迭代与版本
 
 ```bash
@@ -115,6 +127,16 @@ yunxiao codeup commit get <repo_id> <sha>
 yunxiao codeup compare <repo_id> --from master --to develop
 yunxiao codeup mr get <repo_id> <local_id>
 yunxiao codeup mr comments <repo_id> <local_id>
+```
+
+MR 更新/评审提交：
+
+```bash
+yunxiao codeup mr update <repo_id> <local_id> --title "新的标题"
+yunxiao codeup mr update <repo_id> <local_id> --desc-file ./mr.md
+yunxiao codeup mr review-submit <repo_id> <local_id> --opinion PASS
+yunxiao codeup mr review-submit <repo_id> <local_id> --opinion NOT_PASS --comment-file ./review-summary.md
+yunxiao codeup mr review-submit <repo_id> <local_id> --submit-draft <comment_biz_id>
 ```
 
 MR 创建/评论/合并/审核见 SKILL.md 路线 D。跨库合并才需要 `--source-project-id` / `--target-project-id`。

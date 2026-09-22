@@ -1,5 +1,6 @@
 ---
 name: yunxiao-workflow
+version: "0.1.5"
 description: >
   Operate Alibaba Cloud Yunxiao (阿里云云效) via the `yunxiao` CLI: workitems, sprints, versions,
   Codeup repos/MRs, Flow pipelines, knowledge aggregation and Thoughts docs.
@@ -215,6 +216,12 @@ yunxiao codeup mr create <repo_id> \
 ```
 
 3. 回填工作项：按 reply-progress 模板评论 MR 链接（C2），需要时流转状态（C3）。
+4. 创建后需要调整标题或描述时：
+
+```bash
+yunxiao codeup mr update <repo_id> <local_id> --title "新的标题"
+yunxiao codeup mr update <repo_id> <local_id> --desc-file ./mr.md
+```
 
 **D2. 评审 MR**（别人代码 → 意见 → 通过则合并）
 
@@ -240,7 +247,15 @@ yunxiao codeup mr comment <repo_id> <local_id> --content-file ./review-summary.m
 yunxiao codeup mr comment <repo_id> <local_id> --reply <comment_biz_id> --content "已修复" --resolved
 ```
 
-5. 结论处理：
+5. 提交评审结论或草稿评论：
+
+```bash
+yunxiao codeup mr review-submit <repo_id> <local_id> --opinion PASS
+yunxiao codeup mr review-submit <repo_id> <local_id> --opinion NOT_PASS --comment-file ./review-summary.md
+yunxiao codeup mr review-submit <repo_id> <local_id> --submit-draft <comment_biz_id>
+```
+
+6. 结论处理：
    - 通过 → 合并（默认 no-fast-forward、保留源分支；确需删分支才加 `--remove-source-branch`）：
 
 ```bash
@@ -249,7 +264,7 @@ yunxiao codeup mr merge <repo_id> <local_id> [--message "..."]
 
    - 需修改 → 行内评论列清问题，**不要合并**，告知作者。
 
-**危险操作确认**：`mr merge`、`--remove-source-branch`、`workitem transition --to 已取消` 属于不可逆/高影响操作，执行前先向用户展示目标和影响，获得明确同意再执行。
+**危险操作确认**：`mr merge`、`--remove-source-branch`、`workitem transition --to 已取消` 属于不可逆/高影响操作，执行前先向用户展示目标和影响，获得明确同意再执行。`mr review-submit` 会写入评审结论或提交草稿评论，执行前确认目标仓库和 MR。
 
 ---
 

@@ -312,6 +312,59 @@ class CodeupService:
         )
         return {"changeRequest": mr}, self._profile_dict(profile)
 
+    def update_mr(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        local_id: str,
+        title: str | None = None,
+        description: str | None = None,
+        desc_file: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        description = self._load_description(description, desc_file)
+        if title is None and description is None:
+            raise CliError("至少传 --title、--desc 或 --desc-file 之一")
+        if description == "":
+            raise CliError("云效更新接口不支持清空 MR 描述，请传入非空描述")
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        result = api.update_change_request(
+            profile.org,
+            repo_id,
+            local_id,
+            title=title,
+            description=description,
+        )
+        operation_result = result.get("result") if isinstance(result, dict) and "result" in result else result
+        return {"result": operation_result}, self._profile_dict(profile)
+
+    def submit_mr_review(
+        self,
+        *,
+        profile_name: str | None,
+        repo_id: str,
+        local_id: str,
+        opinion: str | None = None,
+        comment: str | None = None,
+        comment_file: str | None = None,
+        submit_draft_comment_ids: list[str] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        review_comment = self._load_comment(comment, comment_file)
+        if opinion is None and review_comment is None and not submit_draft_comment_ids:
+            raise CliError("至少传 --opinion、--comment、--comment-file 或 --submit-draft 之一")
+        profile = self.profile_service.get_profile(profile_name)
+        api = self._codeup_api(profile)
+        review = api.review_change_request(
+            profile.org,
+            repo_id,
+            local_id,
+            review_opinion=opinion,
+            review_comment=review_comment,
+            submit_draft_comment_ids=self._split_values(submit_draft_comment_ids),
+        )
+        return {"review": review}, self._profile_dict(profile)
+
     def get_mr_review_context(
         self,
         *,
@@ -390,6 +443,17 @@ class CodeupService:
             return Path(desc_file).read_text(encoding="utf-8")
         except OSError as error:
             raise CliError(f"读取描述文件失败：{desc_file}") from error
+
+    @staticmethod
+    def _load_comment(comment: str | None, comment_file: str | None) -> str | None:
+        if comment and comment_file:
+            raise CliError("--comment 与 --comment-file 不能同时使用")
+        if not comment_file:
+            return comment
+        try:
+            return Path(comment_file).read_text(encoding="utf-8")
+        except OSError as error:
+            raise CliError(f"读取评论文件失败：{comment_file}") from error
 
     @staticmethod
     def _split_values(values: list[str] | None) -> list[str] | None:

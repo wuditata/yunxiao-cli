@@ -281,6 +281,49 @@ class CodeupAPI(BaseAPI):
             data=payload,
         )
 
+    def update_change_request(
+        self,
+        org_id: str,
+        repo_id: str,
+        local_id: str,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+    ) -> Any:
+        encoded = self._encode_repo_id(repo_id)
+        payload: dict[str, str] = {}
+        if title is not None:
+            payload["title"] = title
+        if description is not None:
+            payload["description"] = description
+        return self.put(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}",
+            data=payload,
+        )
+
+    def review_change_request(
+        self,
+        org_id: str,
+        repo_id: str,
+        local_id: str,
+        *,
+        review_opinion: str | None = None,
+        review_comment: str | None = None,
+        submit_draft_comment_ids: list[str] | None = None,
+    ) -> dict:
+        encoded = self._encode_repo_id(repo_id)
+        payload: dict[str, Any] = {}
+        if review_opinion is not None:
+            payload["reviewOpinion"] = review_opinion
+        if review_comment is not None:
+            payload["reviewComment"] = review_comment
+        if submit_draft_comment_ids is not None:
+            payload["submitDraftCommentIds"] = submit_draft_comment_ids
+        return self.post(
+            f"/oapi/v1/codeup/organizations/{org_id}/repositories/{encoded}/changeRequests/{local_id}/review",
+            data=payload,
+        )
+
     def list_change_request_comments(
         self,
         org_id: str,

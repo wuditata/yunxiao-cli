@@ -375,6 +375,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_success(data=data, profile=profile)
             return 0
+        if args.command == "relation" and args.relation_command == "link":
+            data, profile = relation_service.link(
+                profile_name=args.profile,
+                workitem_id=args.workitem,
+                related_workitem_id=args.related,
+                relation_type=args.type,
+                operator_id=args.operator_id,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "relation" and args.relation_command == "list":
+            data, profile = relation_service.list(
+                profile_name=args.profile,
+                workitem_id=args.workitem,
+                relation_type=args.type,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
+        if args.command == "relation" and args.relation_command == "delete":
+            data, profile = relation_service.delete(
+                profile_name=args.profile,
+                workitem_id=args.workitem,
+                related_workitem_id=args.related,
+                relation_type=args.type,
+                operator_id=args.operator_id,
+            )
+            _print_success(data=data, profile=profile)
+            return 0
         if args.command == "sprint" and args.sprint_command == "list":
             data, profile = sprint_service.list_sprints(
                 profile_name=args.profile,
@@ -637,6 +665,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                     merge_type=args.merge_type,
                     merge_message=args.merge_message,
                     remove_source_branch=args.remove_source_branch,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "update":
+                data, profile = codeup_service.update_mr(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                    title=args.title,
+                    description=args.desc,
+                    desc_file=args.desc_file,
+                )
+                _print_success(data=data, profile=profile)
+                return 0
+            if getattr(args, "codeup_mr_command", None) == "review-submit":
+                data, profile = codeup_service.submit_mr_review(
+                    profile_name=args.profile,
+                    repo_id=args.repo_id,
+                    local_id=args.local_id,
+                    opinion=args.opinion,
+                    comment=args.comment,
+                    comment_file=args.comment_file,
+                    submit_draft_comment_ids=args.submit_draft,
                 )
                 _print_success(data=data, profile=profile)
                 return 0

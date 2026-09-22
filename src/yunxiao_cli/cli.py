@@ -346,15 +346,21 @@ HELP_DETAILS = {
         """,
     ),
     "yunxiao relation": (
-        "管理工作项父子关系。",
+        "管理工作项父子关系和通用关联记录。",
         """
         子命令:
           add         建立父子关系
           children    查看子项
+          link        建立通用关联
+          list        列出关联记录
+          delete      删除关联记录
 
         示例:
           yunxiao relation add --parent <parent_id> --child <child_id>
           yunxiao relation children --parent <parent_id>
+          yunxiao relation link --workitem <source_id> --related <target_id> --type ASSOCIATED
+          yunxiao relation list --workitem <workitem_id> --type ASSOCIATED
+          yunxiao relation delete --workitem <source_id> --related <target_id> --type ASSOCIATED
         """,
     ),
     "yunxiao relation add": (
@@ -369,6 +375,31 @@ HELP_DETAILS = {
         """
         示例:
           yunxiao relation children --parent <parent_id>
+        """,
+    ),
+    "yunxiao relation link": (
+        "建立指定类型的工作项关联。",
+        """
+        示例:
+          yunxiao relation link --workitem <source_id> --related <target_id> --type ASSOCIATED
+          yunxiao relation link --workitem <source_id> --related <target_id> --type DEPEND_ON
+
+        说明:
+          --type 支持 PARENT、SUB、ASSOCIATED、DEPEND_ON、DEPENDED_BY。
+        """,
+    ),
+    "yunxiao relation list": (
+        "查看指定工作项的关联记录。",
+        """
+        示例:
+          yunxiao relation list --workitem <workitem_id> --type ASSOCIATED
+        """,
+    ),
+    "yunxiao relation delete": (
+        "删除两个工作项之间的指定类型关联。",
+        """
+        示例:
+          yunxiao relation delete --workitem <source_id> --related <target_id> --type ASSOCIATED
         """,
     ),
     "yunxiao sprint": (
@@ -683,20 +714,24 @@ HELP_DETAILS = {
         """,
     ),
     "yunxiao codeup mr": (
-        "Codeup 合并请求操作。支持查询、创建、评论、合并和生成本地审核上下文。",
+        "Codeup 合并请求操作。支持查询、创建、更新、评论、评审、合并和生成本地审核上下文。",
         """
         子命令:
-          list        列出合并请求
-          get         查看合并请求详情
-          create      创建合并请求
-          comments    查看 MR 评论
-          comment     发表 MR 评论（全局/行内/回复）
-          merge       合并 MR
-          review      获取本地 agent 审核上下文
+          list           列出合并请求
+          get            查看合并请求详情
+          create         创建合并请求
+          update         更新 MR 标题或描述
+          comments       查看 MR 评论
+          comment        发表 MR 评论（全局/行内/回复）
+          review-submit  提交 MR 评审意见或草稿评论
+          merge          合并 MR
+          review         获取本地 agent 审核上下文
 
         示例:
           yunxiao codeup mr list --repo <repo_id> --state opened
           yunxiao codeup mr get <repo_id> <local_id>
+          yunxiao codeup mr update <repo_id> <local_id> --title "新的标题"
+          yunxiao codeup mr review-submit <repo_id> <local_id> --opinion PASS
           yunxiao codeup mr review <repo_id> <local_id>
           yunxiao codeup mr comment <repo_id> <local_id> --content "LGTM"
         """,
@@ -728,6 +763,18 @@ HELP_DETAILS = {
           --reviewer 和 --workitem 可重复，也可传逗号分隔值。
         """,
     ),
+    "yunxiao codeup mr update": (
+        "更新 Codeup 合并请求标题或描述。",
+        """
+        示例:
+          yunxiao codeup mr update <repo_id> <local_id> --title "新的标题"
+          yunxiao codeup mr update <repo_id> <local_id> --desc-file ./mr.md
+
+        说明:
+          --title、--desc、--desc-file 至少传一个；--desc 与 --desc-file 不能同时使用。
+          云效更新接口不支持清空描述，--desc/--desc-file 不能传空内容。
+        """,
+    ),
     "yunxiao codeup mr comments": (
         "查看合并请求评论和代码审查意见。",
         """
@@ -743,6 +790,18 @@ HELP_DETAILS = {
           yunxiao codeup mr comment <repo_id> <local_id> --content-file ./review.md
           yunxiao codeup mr comment <repo_id> <local_id> --file src/main.py --line 42 --content "这里会空指针"
           yunxiao codeup mr comment <repo_id> <local_id> --reply <comment_biz_id> --content "已修复" --resolved
+        """,
+    ),
+    "yunxiao codeup mr review-submit": (
+        "提交 Codeup 合并请求评审意见，或提交之前创建的草稿评论。",
+        """
+        示例:
+          yunxiao codeup mr review-submit <repo_id> <local_id> --opinion PASS
+          yunxiao codeup mr review-submit <repo_id> <local_id> --opinion NOT_PASS --comment-file ./review-summary.md
+          yunxiao codeup mr review-submit <repo_id> <local_id> --submit-draft <comment_biz_id>
+
+        说明:
+          --opinion、--comment/--comment-file、--submit-draft 至少传一个。
         """,
     ),
     "yunxiao codeup mr merge": (
@@ -1084,6 +1143,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     relation_children_parser.add_argument("--profile", help="profile 名称")
     relation_children_parser.add_argument("--parent", required=True, help="父工作项 ID")
+    relation_link_parser = relation_subparsers.add_parser("link", help="建立通用关联", description="建立任意类型的工作项关联。")
+    relation_link_parser.add_argument("--profile", help="profile 名称")
+    relation_link_parser.add_argument("--workitem", required=True, help="源工作项 ID")
+    relation_link_parser.add_argument("--related", required=True, help="目标工作项 ID")
+    relation_link_parser.add_argument("--type", required=True, choices=["PARENT", "SUB", "ASSOCIATED", "DEPEND_ON", "DEPENDED_BY"], help="关联类型")
+    relation_link_parser.add_argument("--operator-id", help="操作者 userId")
+    relation_list_parser = relation_subparsers.add_parser("list", help="列出关联记录", description="查看指定工作项的关联记录。")
+    relation_list_parser.add_argument("--profile", help="profile 名称")
+    relation_list_parser.add_argument("--workitem", required=True, help="工作项 ID")
+    relation_list_parser.add_argument("--type", required=True, choices=["PARENT", "SUB", "ASSOCIATED", "DEPEND_ON", "DEPENDED_BY"], help="关联类型")
+    relation_delete_parser = relation_subparsers.add_parser("delete", help="删除关联记录", description="删除两个工作项之间的指定类型关联。")
+    relation_delete_parser.add_argument("--profile", help="profile 名称")
+    relation_delete_parser.add_argument("--workitem", required=True, help="源工作项 ID")
+    relation_delete_parser.add_argument("--related", required=True, help="目标工作项 ID")
+    relation_delete_parser.add_argument("--type", required=True, choices=["PARENT", "SUB", "ASSOCIATED", "DEPEND_ON", "DEPENDED_BY"], help="关联类型")
+    relation_delete_parser.add_argument("--operator-id", help="操作者 userId")
 
     sprint_parser = subparsers.add_parser("sprint", help="查看迭代信息")
     sprint_subparsers = _add_subparsers(sprint_parser, dest="sprint_command")
@@ -1298,6 +1373,21 @@ def build_parser() -> argparse.ArgumentParser:
     codeup_mr_merge.add_argument("--merge-type", default="no-fast-forward", help="合并方式，默认 no-fast-forward")
     codeup_mr_merge.add_argument("--message", dest="merge_message", help="合并提交信息")
     codeup_mr_merge.add_argument("--remove-source-branch", action="store_true", help="合并后删除源分支")
+    codeup_mr_update = codeup_mr_subparsers.add_parser("update", help="更新 MR", description="更新合并请求标题或描述。")
+    codeup_mr_update.add_argument("repo_id", help="仓库 ID")
+    codeup_mr_update.add_argument("local_id", help="合并请求局部 ID")
+    codeup_mr_update.add_argument("--profile", help="profile 名称")
+    codeup_mr_update.add_argument("--title", help="新的合并请求标题")
+    codeup_mr_update.add_argument("--desc", help="新的合并请求描述")
+    codeup_mr_update.add_argument("--desc-file", help="从文件读取新的合并请求描述")
+    codeup_mr_review_submit = codeup_mr_subparsers.add_parser("review-submit", help="提交 MR 评审", description="提交合并请求评审意见或草稿评论。")
+    codeup_mr_review_submit.add_argument("repo_id", help="仓库 ID")
+    codeup_mr_review_submit.add_argument("local_id", help="合并请求局部 ID")
+    codeup_mr_review_submit.add_argument("--profile", help="profile 名称")
+    codeup_mr_review_submit.add_argument("--opinion", choices=["PASS", "NOT_PASS"], help="评审意见")
+    codeup_mr_review_submit.add_argument("--comment", help="评审评论内容")
+    codeup_mr_review_submit.add_argument("--comment-file", help="从文件读取评审评论内容")
+    codeup_mr_review_submit.add_argument("--submit-draft", action="append", help="要一并提交的草稿评论 ID，可重复传入")
     codeup_mr_comment = codeup_mr_subparsers.add_parser(
         "comment",
         help="发表 MR 评论",

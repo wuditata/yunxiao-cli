@@ -108,6 +108,9 @@ class BaseAPI:
     def put(self, path: str, *, data: dict[str, Any] | None = None) -> Any:
         return self._request("PUT", path, data=data)
 
+    def delete(self, path: str, *, data: dict[str, Any] | None = None) -> Any:
+        return self._request("DELETE", path, data=data)
+
     def post_multipart(
         self,
         path: str,
